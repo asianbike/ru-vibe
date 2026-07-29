@@ -27,6 +27,12 @@ Rutgers `@scarletmail.rutgers.edu` 전용 실시간 파티 히트맵 PWA.
 - **촬영 가능 시간**: 21:00~03:00 (America/New_York) — Postgres `now()` 기준 판정. 클라이언트가 보낸 시간은 신뢰 안 함 (폰 시간 조작 가능)
 - **하루 3장 제한**: INSERT 시점에 RLS 정책/Postgres 함수로 카운트 체크
 
+## 인증 범위 (2026-07-27 결정)
+
+- **지도(`/map`) 조회는 비로그인 허용** — 유저 관심 유도 목적, 배타성보다 노출 우선
+- **로그인은 사진 업로드(`/capture`)에만 필요** — 즉 middleware가 보호할 라우트는 `/capture`뿐, `/map`은 제외
+- `posts` 테이블 RLS: SELECT는 공개(anon 포함), INSERT만 인증된 scarletmail 유저로 제한
+
 ## 사진 메타데이터 (테크-폴라로이드)
 
 시간 + GPS 위경도 + **랜덤 무드 이모지**(클라이언트 로컬 랜덤, 디바이스 API 불필요).
@@ -60,7 +66,7 @@ ru-vibe/
 
 - [x] 1. Next.js + Bun 스캐폴딩, PWA manifest 기본 세팅
 - [x] 2. Supabase 프로젝트 연결 (`lib/supabase/client.ts`, `server.ts`, 환경변수)
-- [ ] 3. Auth: scarletmail 도메인 제한 로그인/회원가입 (방식: 매직 링크 — 비밀번호 없음, 세션 유지되므로 로그인은 사실상 1회성)
+- [x] 3. Auth: scarletmail 도메인 제한 로그인/회원가입 (방식: 매직 링크 — 비밀번호 없음, 세션 유지되므로 로그인은 사실상 1회성)
 - [ ] 4. DB 마이그레이션: `posts` 테이블 + RLS 정책 (시간 게이트, 3장/일 제한)
 - [ ] 5. Capture 화면: `getUserMedia` 카메라 + Canvas 합성 (시간/GPS/무드 이모지)
 - [ ] 6. Storage 업로드 + `posts` INSERT 연동
@@ -74,3 +80,8 @@ ru-vibe/
 
 - Mapbox API 키 발급 여부
 - Supabase 프로젝트 리전 (US East 추천 — 레이턴시)
+
+## 이메일 발송 (2026-07-28 결론)
+
+로컬 개발 단계에선 **Supabase 기본 내장 메일러 그대로 사용** (시간당 발송 제한 있음, 테스트 페이스 조절 필요).
+커스텀 SMTP는 배포 시점(실제 도메인 생기면)으로 미룸 — 그 전에 Gmail(앱 비밀번호 535 인증 실패 반복)과 Resend(도메인 인증 전엔 가입 계정 이메일로만 발송 가능, GitHub 가입이라 scarletmail 주소로 못 보냄) 둘 다 로컬 테스트 단계에서 막혀서 시간만 소모함. 나중에 다시 시도할 때 이 삽질 반복하지 말 것.
