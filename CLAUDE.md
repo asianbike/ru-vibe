@@ -33,10 +33,33 @@ Rutgers `@scarletmail.rutgers.edu` 전용 실시간 파티 히트맵 PWA.
 - **로그인은 사진 업로드(`/capture`)에만 필요** — 즉 middleware가 보호할 라우트는 `/capture`뿐, `/map`은 제외
 - `posts` 테이블 RLS: SELECT는 공개(anon 포함), INSERT만 인증된 scarletmail 유저로 제한
 
-## 사진 메타데이터 (테크-폴라로이드)
+## 사진 메타데이터 (테크-폴라로이드) — 2026-07-28 수정
 
-시간 + GPS 위경도 + **랜덤 무드 이모지**(클라이언트 로컬 랜덤, 디바이스 API 불필요).
+**사진 픽셀에 그리는 건 날짜/시간뿐.** GPS와 무드 이모지는 DB에만 저장하고 사진엔 안 그림.
+
+| 데이터 | 사진에 그림? | 용도 |
+|---|---|---|
+| 날짜/시간 | O (Canvas 오버레이) | 폴라로이드 감성 |
+| GPS 위경도 | X | 지도 핀 **위치** (`posts.lat/lng`) |
+| 무드 이모지 | X | 지도 핀 **아이콘** (`posts.mood`) |
+
+GPS를 사진에 글자로 박지 않는 이유: 위치는 이미 지도 핀으로 표현되므로 중복이고, 공개 이미지에 정확한 좌표를 새기면 프라이버시만 깎임.
 → Battery Status API는 뺐음. iOS Safari 미지원(프라이버시 이슈로 deprecated)이라 무드 이모지로 대체.
+
+## 폰 실기기 테스트 (2026-07-28 확립 — 반복 삽질 금지)
+
+카메라/GPS는 **secure context**(HTTPS 또는 localhost)에서만 동작. 폰에서 `http://<맥 IP>:3000`으로 열면 페이지는 보여도 카메라는 절대 안 됨.
+
+```bash
+bun dev                                    # 터미널 1
+cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜덤>.trycloudflare.com
+```
+
+- 터널 주소는 **켤 때마다 바뀜**. 로그인까지 테스트하려면 그 주소를 Supabase Redirect URLs에 매번 추가해야 함.
+- `next.config.ts`의 `allowedDevOrigins: ["*.trycloudflare.com"]` **필수**. 없으면 Next dev가 터널 origin의 HMR 웹소켓을 거절 → 하이드레이션 실패 → **화면은 멀쩡한데 버튼이 전부 먹통**. (증상이 "카메라가 안 켜진다"로 보여서 원인 찾는 데 오래 걸렸음.)
+- 카메라는 **버튼 클릭에서 요청**할 것. iOS Safari는 페이지 로드 시점 요청에 권한 팝업을 안 띄우는 경우가 있음.
+- `<video>`엔 `playsInline` 필수 (없으면 iOS가 전체화면 플레이어로 강제 전환), `muted`도 필요(자동재생 정책).
+- 확장 프로그램이 `<html>`에 속성을 주입해서 생기는 하이드레이션 경고(`__gcrremoteframetoken` 등)는 우리 버그 아님. 무시.
 
 ## 디렉토리 구조 (초안)
 
@@ -68,7 +91,10 @@ ru-vibe/
 - [x] 2. Supabase 프로젝트 연결 (`lib/supabase/client.ts`, `server.ts`, 환경변수)
 - [x] 3. Auth: scarletmail 도메인 제한 로그인/회원가입 (방식: 매직 링크 — 비밀번호 없음, 세션 유지되므로 로그인은 사실상 1회성)
 - [x] 4. DB 마이그레이션: `posts` 테이블 + RLS 정책 (시간 게이트, 3장/일 제한)
-- [ ] 5. Capture 화면: `getUserMedia` 카메라 + Canvas 합성 (시간/GPS/무드 이모지)
+- [ ] 5. Capture 화면: `getUserMedia` 카메라 + Canvas 합성
+  - [x] 5-1. `CameraView` — 카메라 라이브 미리보기 (아이폰 실기기 확인 완료)
+  - [ ] 5-2. `PolaroidCanvas` — 촬영 + 날짜/시간 오버레이 합성
+  - [ ] 5-3. `capture/page.tsx` — 위 둘 연결 + geolocation + 무드 이모지 랜덤
 - [ ] 6. Storage 업로드 + `posts` INSERT 연동
 - [ ] 7. Map 화면: Mapbox 세팅 + 기존 마커 로드
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
