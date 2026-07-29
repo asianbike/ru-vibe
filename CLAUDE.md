@@ -67,7 +67,7 @@ ru-vibe/
 - [x] 1. Next.js + Bun 스캐폴딩, PWA manifest 기본 세팅
 - [x] 2. Supabase 프로젝트 연결 (`lib/supabase/client.ts`, `server.ts`, 환경변수)
 - [x] 3. Auth: scarletmail 도메인 제한 로그인/회원가입 (방식: 매직 링크 — 비밀번호 없음, 세션 유지되므로 로그인은 사실상 1회성)
-- [ ] 4. DB 마이그레이션: `posts` 테이블 + RLS 정책 (시간 게이트, 3장/일 제한)
+- [x] 4. DB 마이그레이션: `posts` 테이블 + RLS 정책 (시간 게이트, 3장/일 제한)
 - [ ] 5. Capture 화면: `getUserMedia` 카메라 + Canvas 합성 (시간/GPS/무드 이모지)
 - [ ] 6. Storage 업로드 + `posts` INSERT 연동
 - [ ] 7. Map 화면: Mapbox 세팅 + 기존 마커 로드
