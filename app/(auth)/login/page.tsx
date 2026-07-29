@@ -6,23 +6,23 @@ import { createClient } from "@/lib/supabase/client";
 const EMAIL_DOMAIN = "@scarletmail.rutgers.edu";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [netid, setNetid] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
-    if (!email.toLowerCase().endsWith(EMAIL_DOMAIN)) {
+    if (!netid) {
       setStatus("error");
-      setErrorMessage(`Please use your ${EMAIL_DOMAIN} email.`);
+      setErrorMessage("Please enter your NetID.");
       return;
     }
 
     setStatus("sending");
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
-      email,
+      email: `${netid}${EMAIL_DOMAIN}`,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -42,16 +42,19 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4">
         <h1 className="text-2xl font-semibold">Log in</h1>
         <p className="text-sm text-zinc-500">
-          use <strong>@scarletmail.rutgers.edu</strong>, not @rutgers.edu to login.
+          Enter your NetID (the part before <strong>{EMAIL_DOMAIN}</strong>).
         </p>
-        <input
-          type="email"
-          required
-          placeholder="netid@scarletmail.rutgers.edu"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="rounded border px-3 py-2"
-        />
+        <div className="flex items-center rounded border px-3 py-2">
+          <input
+            type="text"
+            required
+            placeholder="netid"
+            value={netid}
+            onChange={(e) => setNetid(e.target.value)}
+            className="min-w-0 flex-1 outline-none"
+          />
+          <span className="whitespace-nowrap text-zinc-500">{EMAIL_DOMAIN}</span>
+        </div>
         <button
           type="submit"
           disabled={status === "sending"}
