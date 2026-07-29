@@ -17,17 +17,14 @@ alter table public.posts enable row level security;
 grant select on public.posts to anon, authenticated;
 grant insert on public.posts to authenticated;
 
--- 촬영 가능 시간(21:00~03:00 America/New_York) + 마지막 06:00 리셋 이후 3장 제한을
--- 한 번에 판정. 클라이언트가 보낸 시간은 신뢰하지 않고 DB의 now()만 사용.
+-- 마지막 06:00(America/New_York) 리셋 이후 3장 제한. 24/7 촬영 허용으로 변경(2026-07-28).
+-- 클라이언트가 보낸 시간은 신뢰하지 않고 DB의 now()만 사용.
 create or replace function public.can_post(uid uuid)
 returns boolean
 language sql
 stable
 as $$
   select
-    (extract(hour from now() at time zone 'America/New_York') >= 21
-     or extract(hour from now() at time zone 'America/New_York') < 3)
-    and
     (select count(*) from public.posts p
      where p.user_id = uid
        and p.created_at >= (
