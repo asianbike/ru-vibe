@@ -36,6 +36,11 @@ Supabase를 고른 이유: 인증·실시간·6시 배치를 인프라 추가 �
 - GPS(`posts.lat/lng`) → 지도 핀 **위치**. 사진엔 안 그림 (핀과 중복이고, 공개 이미지에 좌표 새기면 프라이버시만 깎임)
 - 무드 이모지(`posts.mood`) → 지도 핀 **아이콘**. 사진엔 안 그림
 
+**Storage: `photos` 버킷, 읽기 public / 쓰기 `<uid>/` 폴더만**
+- 업로드는 브라우저 → Supabase **직접**. 우리 Next 서버 경유는 전송량 2배인데, 권한 검사를 Storage RLS가 이미 하므로 서버가 할 일이 없음
+- 버킷 public인 이유: `/map`이 비로그인 공개라 `<img src>`가 그냥 열려야 함. private이면 사진마다 signed URL 발급(핀 50개 = 호출 50번, 1시간 뒤 만료)
+- `posts.photo_url`엔 **전체 public URL** 저장. 보통은 경로만 저장하는 게 정석(스토리지 이전 시 URL이 썩어서)이지만, 매일 06:00에 전부 지워지므로 썩을 과거 데이터가 없음
+
 **카메라: 네이티브 카메라 앱** (`<input type="file" accept="image/*" capture="environment">`)
 `getUserMedia` 커스텀 뷰파인더에서 갈아탐. 플래시/야간모드 등 화질이 훨씬 좋고 iOS 삽질이 사라짐. 대신 라이브 뷰파인더 위에 UI를 못 얹음 — 필요해지면 그때 재검토.
 
@@ -66,6 +71,9 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
   - [x] 5-1. `PolaroidCanvas` — 네이티브 카메라 + 날짜/시간 오버레이 (아이폰 실기기 확인 완료)
   - [x] 5-2. geolocation + 무드 이모지 랜덤 — 촬영 직후 요청, 좌표·무드는 `capture/page.tsx`가 state로 보관 (태스크 6 업로드가 여기서 꺼내 씀)
 - [ ] 6. Storage 업로드 + `posts` INSERT
+  - [ ] 6-1. `photos` 버킷 + 업로드 정책 (읽기 public / 쓰기는 `<uid>/` 폴더만)
+  - [ ] 6-2. Post 버튼: `canvas.toBlob` → 업로드 → INSERT
+  - [ ] 6-3. `/capture` 로그인 보호 middleware
 - [ ] 7. Map 화면: Mapbox + 기존 마커 로드
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
 - [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
