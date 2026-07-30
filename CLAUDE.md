@@ -86,3 +86,5 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 - `/capture` 보호용 middleware 아직 없음 (태스크 6에서)
 - Mapbox API 키 발급 여부
 - Supabase 리전 (US East 추천 — 레이턴시)
+
+**리다이렉트에 절대 주소 금지** — `route.ts`에서 `new URL(request.url).origin`으로 목적지를 조립하면 터널/프록시 뒤에서 `https://localhost:3000/map`이 나온다(cloudflared가 Host를 `localhost:3000`으로 바꿔서 보냄). 증상이 "로그인이 안 된다"로 보이지만 **로그인은 성공한 상태**이고 마지막 이동만 깨진 것. `Location`에 상대 경로(`/map`)만 주면 브라우저가 자기가 요청한 주소 기준으로 붙여서 어디서나 맞는다.
