@@ -62,9 +62,9 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 - [x] 2. Supabase 연결 (`lib/supabase/{client,server}.ts`, 환경변수)
 - [x] 3. Auth: scarletmail 도메인 제한 (매직 링크 — 비밀번호 없음, 세션 유지되므로 사실상 1회성)
 - [x] 4. DB 마이그레이션: `posts` 테이블 + RLS (3장/일 제한)
-- [ ] 5. Capture 화면
+- [x] 5. Capture 화면
   - [x] 5-1. `PolaroidCanvas` — 네이티브 카메라 + 날짜/시간 오버레이 (아이폰 실기기 확인 완료)
-  - [ ] 5-2. geolocation + 무드 이모지 랜덤 연결
+  - [x] 5-2. geolocation + 무드 이모지 랜덤 — 촬영 직후 요청, 좌표·무드는 `capture/page.tsx`가 state로 보관 (태스크 6 업로드가 여기서 꺼내 씀)
 - [ ] 6. Storage 업로드 + `posts` INSERT
 - [ ] 7. Map 화면: Mapbox + 기존 마커 로드
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
