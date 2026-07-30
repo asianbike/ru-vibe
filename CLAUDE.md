@@ -78,7 +78,7 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
 - [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
 - [ ] 10. PWA 마무리: 아이콘, service worker, 설치 프롬프트
-- [ ] 11. 배포 (Vercel + Supabase) + 최종 QA
+- [ ] 11. 배포 (Vercel + Supabase) + 최종 QA — Redirect URLs에서 `https://*.trycloudflare.com/**` **삭제**할 것 (개발 편의용)
 
 ## 나중에 / Open Questions
 
