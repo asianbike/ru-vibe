@@ -55,6 +55,8 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 - 터널 주소는 켤 때마다 바뀜. 로그인까지 테스트하려면 Supabase Redirect URLs에 매번 추가
 - 확장 프로그램이 `<html>`에 속성 주입해서 나는 하이드레이션 경고(`__gcrremoteframetoken` 등)는 우리 버그 아님. 무시
 
+**리다이렉트에 절대 주소 금지** — `route.ts`에서 `new URL(request.url).origin`으로 목적지를 조립하면 터널/프록시 뒤에서 `https://localhost:3000/map`이 나온다(cloudflared가 Host를 `localhost:3000`으로 바꿔서 보냄). 증상이 "로그인이 안 된다"로 보이지만 **로그인은 성공한 상태**이고 마지막 이동만 깨진 것. `Location`에 상대 경로(`/map`)만 주면 브라우저가 자기가 요청한 주소 기준으로 붙여서 어디서나 맞는다.
+
 **Canvas** — `MAX_EDGE=2048`로 긴 변 제한 필수. iOS Safari는 캔버스가 너무 크면 **에러 없이 빈 이미지**를 내놓고, 48MP 아이폰 사진이 여기 걸림. `createImageBitmap`엔 `imageOrientation:"from-image"` 필요 (없으면 세로 사진이 눕는다).
 
 **이메일 발송** — 로컬 개발은 **Supabase 내장 메일러 그대로** (시간당 발송 제한 있으니 테스트 페이스 조절). 커스텀 SMTP는 배포 시점(실제 도메인 생긴 뒤)으로 미룸. Gmail(앱 비밀번호 535 실패)과 Resend(도메인 인증 전엔 가입 계정 주소로만 발송 가능 — GitHub 가입이라 scarletmail로 못 보냄) 둘 다 로컬에선 막혀서 시간만 소모함.
@@ -86,5 +88,3 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 - `/capture` 보호용 middleware 아직 없음 (태스크 6에서)
 - Mapbox API 키 발급 여부
 - Supabase 리전 (US East 추천 — 레이턴시)
-
-**리다이렉트에 절대 주소 금지** — `route.ts`에서 `new URL(request.url).origin`으로 목적지를 조립하면 터널/프록시 뒤에서 `https://localhost:3000/map`이 나온다(cloudflared가 Host를 `localhost:3000`으로 바꿔서 보냄). 증상이 "로그인이 안 된다"로 보이지만 **로그인은 성공한 상태**이고 마지막 이동만 깨진 것. `Location`에 상대 경로(`/map`)만 주면 브라우저가 자기가 요청한 주소 기준으로 붙여서 어디서나 맞는다.
