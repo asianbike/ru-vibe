@@ -90,10 +90,11 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 - [x] 5. Capture 화면
   - [x] 5-1. `PolaroidCanvas` — 네이티브 카메라 + 날짜/시간 오버레이 (아이폰 실기기 확인 완료)
   - [x] 5-2. geolocation + 무드 이모지 랜덤 — 촬영 직후 요청, 좌표·무드는 `capture/page.tsx`가 state로 보관 (태스크 6 업로드가 여기서 꺼내 씀)
-- [ ] 6. Storage 업로드 + `posts` INSERT
+- [x] 6. Storage 업로드 + `posts` INSERT
   - [x] 6-1. `photos` 버킷 + 업로드 정책 (읽기 public / 쓰기는 `<uid>/` 폴더만)
   - [x] 6-2. Post 버튼: `canvas.toBlob` → 업로드 → INSERT (맥 웹캠으로 `Posted!`까지 확인)
-  - [x] 6-3. `/capture` 로그인 보호 `proxy.ts`
+  - [x] 6-3. `/capture` 로그인 보호 `proxy.ts` (Next 16은 `middleware.ts` 아님)
+  - 폰 실기기에서 OTP 로그인 → 촬영 → Post → Storage·`posts` 양쪽 확인 완료
 - [ ] 7. Map 화면: Mapbox + 기존 마커 로드
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
 - [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
