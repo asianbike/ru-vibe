@@ -28,6 +28,11 @@ Supabase를 고른 이유: 인증·실시간·6시 배치를 인프라 추가 �
 - 촬영 시간 제한 없음, 24/7 (낮 캠퍼스 이벤트도 잡기 위해)
 - 하루 3장 제한 — INSERT 시 RLS/Postgres 함수로 카운트 (America/New_York 06:00 리셋)
 
+**로그인: 매직 링크 → 6자리 OTP 코드** (2026-07-30 변경)
+매직 링크는 메일 앱이 링크를 여는 브라우저에 세션을 꽂는데, Gmail 앱은 구글 인앱 브라우저로 연다. 세션 쿠키는 브라우저별로 따로라 유저가 나중에 Safari로 열면 로그아웃 상태 — 안내문으로 못 덮는 구조적 문제. 코드는 유저가 눈으로 읽어 원래 화면에 입력하므로 브라우저를 건너가지 않는다.
+곁다리로 `app/auth/callback/route.ts` 삭제, Supabase Redirect URLs 설정 자체가 불필요해짐(터널 주소를 매번 등록하던 삽질도 사라짐).
+**대시보드 → Authentication → Email Templates → Magic Link 에 `{{ .Token }}` 이 들어 있어야 함.**
+
 **인증 범위**
 - `/map` 조회는 **비로그인 허용** (노출 > 배타성). 로그인은 `/capture`에만 필요
 - `posts` RLS: SELECT 공개(anon 포함), INSERT만 인증 유저
@@ -52,10 +57,9 @@ bun dev                                          # 터미널 1
 cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜덤>.trycloudflare.com
 ```
 - `next.config.ts`의 `allowedDevOrigins: ["*.trycloudflare.com"]` **필수**. 없으면 Next dev가 터널 origin의 HMR 웹소켓을 거절 → 하이드레이션 실패 → **화면은 멀쩡한데 버튼이 전부 먹통**. 증상이 "카메라가 안 켜진다"로 보여서 원인 찾는 데 오래 걸렸음
-- 터널 주소는 켤 때마다 바뀜. 로그인까지 테스트하려면 Supabase Redirect URLs에 매번 추가
 - 확장 프로그램이 `<html>`에 속성 주입해서 나는 하이드레이션 경고(`__gcrremoteframetoken` 등)는 우리 버그 아님. 무시
 
-**리다이렉트에 절대 주소 금지** — `route.ts`에서 `new URL(request.url).origin`으로 목적지를 조립하면 터널/프록시 뒤에서 `https://localhost:3000/map`이 나온다(cloudflared가 Host를 `localhost:3000`으로 바꿔서 보냄). 증상이 "로그인이 안 된다"로 보이지만 **로그인은 성공한 상태**이고 마지막 이동만 깨진 것. `Location`에 상대 경로(`/map`)만 주면 브라우저가 자기가 요청한 주소 기준으로 붙여서 어디서나 맞는다.
+**서버 리다이렉트에 절대 주소 금지** — route handler나 middleware에서 `new URL(request.url).origin`으로 목적지를 조립하면 터널/프록시 뒤에서 `https://localhost:3000/map` 같은 잡종이 나온다(cloudflared가 Host를 `localhost:3000`으로 바꿔 보냄). 증상이 "로그인이 안 된다"로 보이는데 실제로는 로그인은 성공했고 마지막 이동만 깨진 것이라 원인이 안 보인다. `Location` 헤더에 상대 경로(`/map`)만 주면 브라우저가 자기가 요청한 주소 기준으로 붙여서 어디서나 맞는다. **서버는 자기 주소를 모른다**가 원칙.
 
 **인앱 브라우저(Gmail/구글/인스타 앱 안의 브라우저)에서 geolocation이 죽는다** — 팝업도 안 뜨고 성공/실패 콜백 둘 다 안 불려서 `locating…`에 무한 정지. `timeout`은 권한 허용 *이후*부터 세기 때문에 타이머조차 시작 안 함. 위치 권한이 사이트가 아니라 그 앱 자체의 권한을 따라감. iOS 설정에서 위치 서비스가 전부 ON이어도 막힘. 카메라는 되는데 GPS만 죽어서 원인이 안 보임. → Safari로 열어야 함. 세션 쿠키는 브라우저별로 따로라 옮기면 재로그인 필요.
 
@@ -69,7 +73,7 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 
 - [x] 1. Next.js + Bun 스캐폴딩, PWA manifest
 - [x] 2. Supabase 연결 (`lib/supabase/{client,server}.ts`, 환경변수)
-- [x] 3. Auth: scarletmail 도메인 제한 (매직 링크 — 비밀번호 없음, 세션 유지되므로 사실상 1회성)
+- [x] 3. Auth: scarletmail 도메인 제한 (**6자리 OTP 코드** — 비밀번호 없음, 세션 유지되므로 사실상 1회성)
 - [x] 4. DB 마이그레이션: `posts` 테이블 + RLS (3장/일 제한)
 - [x] 5. Capture 화면
   - [x] 5-1. `PolaroidCanvas` — 네이티브 카메라 + 날짜/시간 오버레이 (아이폰 실기기 확인 완료)
@@ -81,8 +85,8 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 - [ ] 7. Map 화면: Mapbox + 기존 마커 로드
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
 - [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
-- [ ] 10. PWA 마무리: 아이콘, service worker, 설치 프롬프트
-- [ ] 11. 배포 (Vercel + Supabase) + 최종 QA — Redirect URLs에서 `https://*.trycloudflare.com/**` **삭제**할 것 (개발 편의용)
+- [ ] 10. PWA 마무리: 아이콘, service worker, 설치 프롬프트 + **인앱 브라우저 감지 배너**("Open in Safari" — GPS가 죽으므로)
+- [ ] 11. 배포 (Vercel + Supabase) + 최종 QA
 
 ## 나중에 / Open Questions
 
