@@ -105,7 +105,7 @@ export default function LoginPage() {
         <form onSubmit={verifyCode} className="flex w-full max-w-sm flex-col gap-4">
           <h1 className="text-2xl font-semibold">Enter your code</h1>
           <p className="text-sm text-zinc-500">
-            We sent a 6-digit code to <strong>{email}</strong>.
+            We sent a code to <strong>{email}</strong>. Check your spam folder.
           </p>
           <input
             type="text"
@@ -115,8 +115,11 @@ export default function LoginPage() {
             // 키보드 위에 "자동 입력" 버튼을 띄워준다. 타이핑 없이 한 번에 채워진다.
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
-            placeholder="000000"
+            // 코드 길이는 우리가 정하는 게 아니라 Supabase 대시보드 설정값이다(기본 6, 최대 10).
+            // 여기에 6을 박아두면 8자리로 설정된 순간 뒤 두 자리가 입력조차 안 되고,
+            // 화면엔 아무 에러도 안 뜬다 — "코드가 계속 틀리다"로만 보인다.
+            // 최대치인 10을 두고 실제 검증은 서버에 맡긴다. 설정을 바꿔도 여기는 안 고쳐도 된다.
+            maxLength={10}
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="rounded border px-3 py-2 text-center text-2xl tracking-[0.4em] outline-none"

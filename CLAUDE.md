@@ -73,7 +73,11 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 
 **Canvas** — `MAX_EDGE=2048`로 긴 변 제한 필수. iOS Safari는 캔버스가 너무 크면 **에러 없이 빈 이미지**를 내놓고, 48MP 아이폰 사진이 여기 걸림. `createImageBitmap`엔 `imageOrientation:"from-image"` 필요 (없으면 세로 사진이 눕는다).
 
-**이메일 발송** — 로컬 개발은 **Supabase 내장 메일러 그대로** (시간당 발송 제한 있으니 테스트 페이스 조절). 커스텀 SMTP는 배포 시점(실제 도메인 생긴 뒤)으로 미룸. Gmail(앱 비밀번호 535 실패)과 Resend(도메인 인증 전엔 가입 계정 주소로만 발송 가능 — GitHub 가입이라 scarletmail로 못 보냄) 둘 다 로컬에선 막혀서 시간만 소모함.
+**이메일 발송: Brevo SMTP** (2026-07-30) — OTP 코드를 보내려면 메일 템플릿에 `{{ .Token }}`을 넣어야 하는데, **Supabase는 커스텀 SMTP 없이는 템플릿 편집을 잠근다**. 그래서 배포까지 미룰 수 없었음. Brevo를 고른 이유: 도메인 없이 발신자 주소만 인증하면 아무 수신자에게나 발송 가능(무료 300통/일). 이전 실패들 — Gmail(앱 비밀번호 535), Resend(도메인 인증 전엔 가입 계정 주소로만 발송 가능).
+- 커스텀 SMTP를 켜면 발송 제한이 시간당 2 → 30으로 자동 상향
+- **Brevo IP 검사**: Supabase 발송 서버 IP가 바뀌면 차단되고, 증상은 "코드가 안 온다"로만 보임(앱엔 에러 없음). Brevo 메일로 authorize 요청이 옴
+- **스팸함으로 감** — 도메인 인증(SPF/DKIM)이 없어서 정상. 진짜 해결은 태스크 11에서 도메인 사고 Brevo에 DNS 레코드 등록. 그전까진 스팸함 확인
+- **OTP 코드 길이는 대시보드 설정값**(Authentication → Sign In/Providers → Email, 기본 6, 최대 10). 클라이언트 `maxLength`에 박아두면 안 됨 — 짧게 잘려서 "코드가 계속 틀리다"로만 보임
 
 ## 태스크 체크리스트
 
