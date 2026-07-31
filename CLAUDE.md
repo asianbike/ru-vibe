@@ -59,7 +59,15 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 - `next.config.ts`의 `allowedDevOrigins: ["*.trycloudflare.com"]` **필수**. 없으면 Next dev가 터널 origin의 HMR 웹소켓을 거절 → 하이드레이션 실패 → **화면은 멀쩡한데 버튼이 전부 먹통**. 증상이 "카메라가 안 켜진다"로 보여서 원인 찾는 데 오래 걸렸음
 - 확장 프로그램이 `<html>`에 속성 주입해서 나는 하이드레이션 경고(`__gcrremoteframetoken` 등)는 우리 버그 아님. 무시
 
-**서버 리다이렉트에 절대 주소 금지** — route handler나 middleware에서 `new URL(request.url).origin`으로 목적지를 조립하면 터널/프록시 뒤에서 `https://localhost:3000/map` 같은 잡종이 나온다(cloudflared가 Host를 `localhost:3000`으로 바꿔 보냄). 증상이 "로그인이 안 된다"로 보이는데 실제로는 로그인은 성공했고 마지막 이동만 깨진 것이라 원인이 안 보인다. `Location` 헤더에 상대 경로(`/map`)만 주면 브라우저가 자기가 요청한 주소 기준으로 붙여서 어디서나 맞는다. **서버는 자기 주소를 모른다**가 원칙.
+**서버 리다이렉트 목적지는 헤더에서 조립** — route handler·`proxy.ts`에서 `new URL(request.url)`로 절대 주소를 만들면 터널 뒤에서 `https://localhost:3000/login` 잡종이 나온다. 범인은 터널이 아니라 Next다(cloudflared는 `host`/`x-forwarded-host`를 제대로 넘김 — 측정 완료). Next가 `request.url`을 Host 헤더가 아니라 **자기 listen 주소**로 조립하면서 proto만 `x-forwarded-proto`에서 가져오기 때문. 증상이 "로그인이 안 된다"로 보이는데 실제로는 로그인은 성공했고 마지막 이동만 깨진 것이라 원인이 안 보인다.
+```ts
+const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+const proto = request.headers.get("x-forwarded-proto") ?? "http";
+return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
+```
+`Location`에 상대 경로만 넣는 방법은 route handler에선 되지만 **`proxy.ts`에선 `ERR_INVALID_URL`로 거부**된다.
+
+**Next 16은 `middleware.ts` → `proxy.ts`** (export 이름도 `proxy`). 옛 이름도 동작하지만 deprecated 경고가 뜬다.
 
 **인앱 브라우저(Gmail/구글/인스타 앱 안의 브라우저)에서 geolocation이 죽는다** — 팝업도 안 뜨고 성공/실패 콜백 둘 다 안 불려서 `locating…`에 무한 정지. `timeout`은 권한 허용 *이후*부터 세기 때문에 타이머조차 시작 안 함. 위치 권한이 사이트가 아니라 그 앱 자체의 권한을 따라감. iOS 설정에서 위치 서비스가 전부 ON이어도 막힘. 카메라는 되는데 GPS만 죽어서 원인이 안 보임. → Safari로 열어야 함. 세션 쿠키는 브라우저별로 따로라 옮기면 재로그인 필요.
 
@@ -81,7 +89,7 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 - [ ] 6. Storage 업로드 + `posts` INSERT
   - [x] 6-1. `photos` 버킷 + 업로드 정책 (읽기 public / 쓰기는 `<uid>/` 폴더만)
   - [x] 6-2. Post 버튼: `canvas.toBlob` → 업로드 → INSERT (맥 웹캠으로 `Posted!`까지 확인)
-  - [ ] 6-3. `/capture` 로그인 보호 middleware
+  - [x] 6-3. `/capture` 로그인 보호 `proxy.ts`
 - [ ] 7. Map 화면: Mapbox + 기존 마커 로드
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
 - [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
@@ -91,6 +99,5 @@ cloudflared tunnel --url http://localhost:3000   # 터미널 2 → https://<랜�
 ## 나중에 / Open Questions
 
 - **사진 aesthetic 고도화** — 태스크 8 이후. 룩 결정 코드는 `PolaroidCanvas`의 `drawImage` 이후 10줄에 전부 모여 있고 다른 곳은 사진 생김새에 의존하지 않음. 매일 06:00 삭제되니 "옛날 필터로 남은 사진" 문제도 없음. 후보: 폴라로이드 프레임(흰 여백+정사각형), 비네팅, 필름 그레인, `ctx.filter` 색보정, 커스텀 폰트
-- `/capture` 보호용 middleware 아직 없음 (태스크 6에서)
 - Mapbox API 키 발급 여부
 - Supabase 리전 (US East 추천 — 레이턴시)
