@@ -54,7 +54,8 @@ Supabase를 고른 이유: 인증·실시간·6시 배치를 인프라 추가 �
 
 **사진에 그리는 것: 날짜/시간뿐**
 - GPS(`posts.lat/lng`) → 지도 핀 **위치**. 사진엔 안 그림 (핀과 중복이고, 공개 이미지에 좌표 새기면 프라이버시만 깎임)
-- ~~무드 이모지(`posts.mood`) → 지도 핀 **아이콘**~~ → **철회 (2026-08-02).** 이모지 핀은 지저분해서 Mapbox 기본 물방울 핀(Rutgers scarlet `#CC0033`)으로 교체. `mood` 컬럼과 `/capture`의 랜덤 선택은 그대로 두되 **아무 데도 안 쓰임** — 태스크 10까지 용처가 안 생기면 컬럼째 삭제할 것
+- ~~무드 이모지(`posts.mood`) → 지도 핀 **아이콘**~~ → **철회 (2026-08-02).** 무드마다 아이콘이 달라지면 지저분해서 **핀 전부 📍 하나로 통일**.
+  - 커스텀 element를 넘길 땐 **`anchor: "bottom"` 필수**. 기본값은 요소의 한가운데를 좌표에 맞추는데 📍는 아래 끝이 가리키는 그림이라, 안 주면 핀이 실제 위치보다 아래를 가리킨다 `mood` 컬럼과 `/capture`의 랜덤 선택은 그대로 두되 **아무 데도 안 쓰임** — 태스크 10까지 용처가 안 생기면 컬럼째 삭제할 것
 
 **Storage: `photos` 버킷, 읽기 public / 쓰기 `<uid>/` 폴더만**
 - 업로드는 브라우저 → Supabase **직접**. 우리 Next 서버 경유는 전송량 2배인데, 권한 검사를 Storage RLS가 이미 하므로 서버가 할 일이 없음
@@ -118,7 +119,7 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
   - 폰 실기기에서 OTP 로그인 → 촬영 → Post → Storage·`posts` 양쪽 확인 완료
 - [ ] 7. Map 화면: Mapbox + 기존 마커 로드
   - [x] 7-1. `mapbox-gl` 설치 + 빈 지도 (`app/(main)/map/page.tsx`, 캠퍼스 전체가 보이는 중심/배율)
-  - [x] 7-2. `posts` 조회 → scarlet 핀 + 클릭 시 사진 팝업 (`addMarker()`, 태스크 8이 그대로 재사용)
+  - [x] 7-2. `posts` 조회 → 📍 핀 + 클릭 시 사진 팝업 (`addMarker()`, 태스크 8이 그대로 재사용)
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
 - [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
 - [ ] 10. PWA 마무리: 아이콘, service worker, 설치 프롬프트 + **인앱 브라우저 감지 배너**("Open in Safari" — GPS가 죽으므로)

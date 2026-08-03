@@ -41,10 +41,21 @@ function addMarker(map: mapboxgl.Map, post: Post) {
   // 0이면 말풍선이 핀을 덮어버린다.
   const popup = new mapboxgl.Popup({ offset: 30 }).setDOMContent(img);
 
-  // Marker에 element를 안 넘기면 Mapbox 기본 물방울 핀이 나온다. color만 지정.
+  // 핀 모양을 직접 만든다. element를 안 넘기면 Mapbox 기본 물방울 핀이 나온다.
+  const pin = document.createElement("div");
+  pin.textContent = "📍";
+  pin.style.fontSize = "28px";
+  pin.style.lineHeight = "1";
+  pin.style.cursor = "pointer";
+
+  // anchor: "bottom" = "이 요소의 아래쪽 끝"을 좌표에 맞춰라.
+  // element를 직접 넘기면 Mapbox는 기본으로 요소의 한가운데를 좌표에 맞추는데,
+  // 📍는 그림의 아래 뾰족한 끝이 가리키는 지점이다. 기본값 그대로 두면 핀이
+  // 실제 위치보다 반 칸 아래를 가리키게 된다 — 확대해야 겨우 보이는 종류의 어긋남.
+  //
   // setLngLat은 [경도, 위도] 순. posts 테이블은 lat/lng 순이라 여기서 뒤집힌다.
   // 뒤집힌 채로 넣어도 에러가 안 나고 지도 반대편에 조용히 찍히므로 눈으로 봐야 안다.
-  new mapboxgl.Marker({ color: "#CC0033" })
+  new mapboxgl.Marker({ element: pin, anchor: "bottom" })
     .setLngLat([post.lng, post.lat])
     .setPopup(popup)
     .addTo(map);
