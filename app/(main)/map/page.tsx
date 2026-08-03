@@ -7,6 +7,8 @@
 // Mapbox에게 "이 <div> 안에 지도를 그려"라고 시키려면 실물이 생긴 뒤여야 한다.
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
+// 브라우저에서 Supabase에 말을 거는 도구. /capture에서 쓰던 것과 같은 파일이다.
+import { createClient } from "@/lib/supabase/client";
 // 지도의 확대 버튼, 로고, 팝업 같은 것들의 생김새를 정의한 CSS.
 // 이걸 빼면 지도 타일은 나오는데 UI가 깨져서 엉뚱한 곳에 겹쳐 보인다.
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -20,6 +22,43 @@ import "mapbox-gl/dist/mapbox-gl.css";
 // 지도 반대편(아프리카 앞바다)에 핀이 찍혀서 원인을 찾기 어렵다.
 const CAMPUS_CENTER: [number, number] = [-74.448, 40.501];
 const CAMPUS_ZOOM = 12.5;
+
+// 게시물 하나를 지도 위의 마커 하나로 만들어 붙인다.
+// 태스크 8(실시간)에서 새 글이 도착했을 때도 이 함수만 다시 부르면 된다.
+function addMarker(map: mapboxgl.Map, post: Post) {
+  // 클릭했을 때 뜨는 말풍선에 사진을 넣는다.
+  //
+  // setHTML(`<img src="${post.photo_url}">`) 처럼 문자열로 조립하면 안 된다.
+  // photo_url은 유저가 INSERT한 값이라 따옴표를 닫고 <script>를 이어붙일 수 있고,
+  // 그러면 /map을 여는 모든 사람의 브라우저에서 그 코드가 실행된다(XSS).
+  // 아래처럼 요소를 만들어 .src에 넣으면 값은 언제나 "주소"로만 취급된다.
+  const img = document.createElement("img");
+  img.src = post.photo_url;
+  img.width = 200;
+  img.style.display = "block";
+
+  // offset = 말풍선을 마커보다 이만큼 위에 띄운다. 기본 핀이 약 41px이라
+  // 0이면 말풍선이 핀을 덮어버린다.
+  const popup = new mapboxgl.Popup({ offset: 30 }).setDOMContent(img);
+
+  // Marker에 element를 안 넘기면 Mapbox 기본 물방울 핀이 나온다. color만 지정.
+  // setLngLat은 [경도, 위도] 순. posts 테이블은 lat/lng 순이라 여기서 뒤집힌다.
+  // 뒤집힌 채로 넣어도 에러가 안 나고 지도 반대편에 조용히 찍히므로 눈으로 봐야 안다.
+  new mapboxgl.Marker({ color: "#CC0033" })
+    .setLngLat([post.lng, post.lat])
+    .setPopup(popup)
+    .addTo(map);
+}
+
+// posts 테이블에서 지도에 필요한 칸만 받는다 — 전송량을 줄이려는 것이지 보안이 아니다.
+// SELECT 정책이 using(true)라 방문자가 콘솔에서 직접 user_id를 뽑는 건 여전히 가능하다.
+// 진짜로 가리려면 컬럼 권한을 빼거나 view를 따로 만들어야 한다.
+type Post = {
+  id: string;
+  lat: number;
+  lng: number;
+  photo_url: string;
+};
 
 export default function MapPage() {
   // 지도를 그려 넣을 <div>의 실물을 붙잡아 두는 상자.
@@ -53,6 +92,25 @@ export default function MapPage() {
       center: CAMPUS_CENTER,
       zoom: CAMPUS_ZOOM,
     });
+
+    // 지금까지 올라온 게시물을 전부 가져와 마커로 찍는다.
+    // 로그인 없이도 되는 이유: posts의 SELECT 정책이 using(true) — 태스크 6 랩에서
+    // 키만 있으면 anon도 조회가 통과하는 걸 curl로 직접 확인했던 그 정책이다.
+    // (매일 06:00에 비워지므로 양이 많아질 일이 없어 페이지네이션은 안 둔다)
+    createClient()
+      .from("posts")
+      .select("id, lat, lng, photo_url")
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("failed to load posts", error);
+          return;
+        }
+        // 조회는 시간이 걸린다. 그 사이 유저가 페이지를 떠났으면 아래 cleanup이
+        // 이미 돌아서 지도가 사라진 상태다. 없어진 지도에 마커를 붙이면 터진다.
+        const map = mapRef.current;
+        if (!map) return;
+        data?.forEach((post) => addMarker(map, post));
+      });
 
     // useEffect가 돌려주는 함수 = "이 페이지를 떠날 때 실행할 뒷정리".
     // 지도는 WebGL 컨텍스트와 이벤트 리스너를 잡고 있어서, 안 지우면
