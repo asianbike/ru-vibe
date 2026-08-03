@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 데모 스크린샷 — 위치 정보가 찍혀 있어 보류 중 (2026-08-03).
+# 올릴 준비가 되면 이 두 줄을 지우면 된다.
+docs/*.png
