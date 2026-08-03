@@ -22,5 +22,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* layout.tsx가 Geist 폰트를 불러와 --font-sans에 연결해 둔다.
+     여기에 Arial을 박아두면 그 폰트가 다운로드만 되고 화면엔 안 쓰인다. */
+  font-family: var(--font-sans);
 }
