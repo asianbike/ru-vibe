@@ -104,11 +104,16 @@ export default function MapPage() {
       zoom: CAMPUS_ZOOM,
     });
 
+    // 조회와 실시간 구독이 같은 클라이언트를 써야 한다.
+    // createClient()를 두 번 부르면 웹소켓 연결이 두 개 생기고,
+    // 아래 cleanup의 removeChannel이 자기가 만들지 않은 채널을 못 닫는다.
+    const supabase = createClient();
+
     // 지금까지 올라온 게시물을 전부 가져와 마커로 찍는다.
     // 로그인 없이도 되는 이유: posts의 SELECT 정책이 using(true) — 태스크 6 랩에서
     // 키만 있으면 anon도 조회가 통과하는 걸 curl로 직접 확인했던 그 정책이다.
     // (매일 06:00에 비워지므로 양이 많아질 일이 없어 페이지네이션은 안 둔다)
-    createClient()
+    supabase
       .from("posts")
       .select("id, lat, lng, photo_url")
       .then(({ data, error }) => {
@@ -123,10 +128,39 @@ export default function MapPage() {
         data?.forEach((post) => addMarker(map, post));
       });
 
+    // ── 여기부터 실시간 ──────────────────────────────────────────────
+    // 위의 select는 "지금까지 쌓인 것"을 한 번 가져올 뿐이라, 이 뒤에 올라오는
+    // 사진은 새로고침해야 보인다. 아래는 그 사이를 잇는다.
+    //
+    // channel = 서버와 열어두는 웹소켓 통로 하나. 이름은 우리가 붙이는 것이고
+    // 서버는 이 통로로 "posts에 INSERT가 일어났다"를 밀어준다(push).
+    // 우리가 3초마다 물어보는 게 아니라 서버가 알려주는 것 — 조용한 시간엔 통신이 0.
+    const channel = supabase
+      .channel("posts-inserts")
+      .on(
+        // "postgres_changes" = Postgres에서 일어난 데이터 변경을 받겠다는 뜻.
+        // event를 "*"로 두면 UPDATE·DELETE도 오는데, 우리는 새 사진만 필요하다.
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "posts" },
+        (payload) => {
+          // payload.new = 방금 INSERT된 행 전체. 우리가 select에서 고른 칸만
+          // 오는 게 아니라 모든 칸이 온다(user_id 포함) — 서버가 보내는 것이라
+          // 우리 select와는 무관하다.
+          console.log("realtime INSERT", payload.new);
+          const map = mapRef.current;
+          if (!map) return;
+          addMarker(map, payload.new as Post);
+        },
+      )
+      // subscribe()를 불러야 실제로 연결이 열린다. 안 부르면 위 설정만 해두고
+      // 아무 일도 일어나지 않는다 — 에러도 안 난다.
+      .subscribe((status) => console.log("realtime status", status));
+
     // useEffect가 돌려주는 함수 = "이 페이지를 떠날 때 실행할 뒷정리".
-    // 지도는 WebGL 컨텍스트와 이벤트 리스너를 잡고 있어서, 안 지우면
-    // 페이지를 오갈 때마다 메모리에 지도가 쌓인다.
+    // 지도는 WebGL 컨텍스트와 이벤트 리스너를, 채널은 웹소켓을 잡고 있어서
+    // 안 닫으면 페이지를 오갈 때마다 쌓인다.
     return () => {
+      supabase.removeChannel(channel);
       mapRef.current?.remove();
       mapRef.current = null;
     };

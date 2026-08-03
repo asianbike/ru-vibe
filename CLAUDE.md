@@ -121,7 +121,7 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 - [x] 7. Map 화면: Mapbox + 기존 마커 로드
   - [x] 7-1. `mapbox-gl` 설치 + 빈 지도 (`app/(main)/map/page.tsx`, 캠퍼스 전체가 보이는 중심/배율)
   - [x] 7-2. `posts` 조회 → 📍 핀 + 클릭 시 사진 팝업 (`addMarker()`, 태스크 8이 그대로 재사용)
-- [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
+- [x] 8. Realtime 구독: 새 게시물 마커 실시간 추가 (`supabase_realtime` publication에 `posts` 추가 — 이걸 안 하면 `.subscribe()`는 `SUBSCRIBED`를 돌려주면서 데이터만 안 온다)
 - [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
 - [ ] 10. PWA 마무리: 아이콘, service worker, 설치 프롬프트 + **인앱 브라우저 감지 배너**("Open in Safari" — GPS가 죽으므로)
 - [ ] 11. 배포 (Vercel + Supabase) + 최종 QA
