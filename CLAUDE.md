@@ -61,6 +61,12 @@ Supabase를 고른 이유: 인증·실시간·6시 배치를 인프라 추가 �
 - 버킷 public인 이유: `/map`이 비로그인 공개라 `<img src>`가 그냥 열려야 함. private이면 사진마다 signed URL 발급(핀 50개 = 호출 50번, 1시간 뒤 만료)
 - `posts.photo_url`엔 **전체 public URL** 저장. 보통은 경로만 저장하는 게 정석(스토리지 이전 시 URL이 썩어서)이지만, 매일 06:00에 전부 지워지므로 썩을 과거 데이터가 없음
 
+**Mapbox 토큰: `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` (public `pk.` 토큰, 시크릿 스코프 0개)**
+`NEXT_PUBLIC_`은 "공개해도 된다"는 허가가 아니라 **빌드 시 값을 브라우저 JS에 글자 그대로 박아 넣으라는 명령**이다. 그래서 시크릿 스코프(`uploads:write` 등)를 하나라도 켜면 그 권한이 전 세계에 뿌려진다. 지도 타일 렌더링은 스코프 없이도 되는 기본 권한이라 아무것도 체크할 필요 없음.
+anon key와 같은 구조 — 키는 이름표고 진짜 방어선은 서버(Supabase는 RLS, Mapbox는 스코프+URL 제한+사용량 한도).
+**URL 제한은 태스크 11에서** Vercel 도메인 확정 후 추가. 지금 걸면 `cloudflared` 랜덤 도메인이라 개발 중 지도가 죽는다.
+**좌표 순서: Mapbox는 `[lng, lat]`, `posts` 테이블은 `lat`/`lng`.** 뒤집어도 에러가 안 나고 지도 반대편에 핀이 찍힌다.
+
 **카메라: 네이티브 카메라 앱** (`<input type="file" accept="image/*" capture="environment">`)
 `getUserMedia` 커스텀 뷰파인더에서 갈아탐. 플래시/야간모드 등 화질이 훨씬 좋고 iOS 삽질이 사라짐. 대신 라이브 뷰파인더 위에 UI를 못 얹음 — 필요해지면 그때 재검토.
 
@@ -111,6 +117,8 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
   - [x] 6-3. `/capture` 로그인 보호 `proxy.ts` (Next 16은 `middleware.ts` 아님)
   - 폰 실기기에서 OTP 로그인 → 촬영 → Post → Storage·`posts` 양쪽 확인 완료
 - [ ] 7. Map 화면: Mapbox + 기존 마커 로드
+  - [x] 7-1. `mapbox-gl` 설치 + 빈 지도 (`app/(main)/map/page.tsx`, 캠퍼스 전체가 보이는 중심/배율)
+  - [ ] 7-2. `posts` 조회 → 무드 이모지 마커 + 클릭 시 사진 팝업
 - [ ] 8. Realtime 구독: 새 게시물 마커 실시간 추가
 - [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
 - [ ] 10. PWA 마무리: 아이콘, service worker, 설치 프롬프트 + **인앱 브라우저 감지 배너**("Open in Safari" — GPS가 죽으므로)
