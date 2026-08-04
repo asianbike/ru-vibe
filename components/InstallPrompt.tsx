@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isInAppBrowser } from "@/lib/in-app-browser";
 
 // 이 배너를 닫았다는 사실을 어디에 적어둘지 정하는 이름표.
 // localStorage = 이 브라우저에 계속 남는 작은 저장소. state에만 적으면 새로고침하면
@@ -27,7 +28,10 @@ export default function InstallPrompt() {
 
     // 안드로이드/데스크톱 Chrome은 주소창에 설치 아이콘을 브라우저가 직접 띄워준다.
     // 아이폰만 그게 없어서 우리가 말로 알려줘야 한다.
-    if (isIOS && !standalone && !localStorage.getItem(DISMISSED_KEY)) setShow(true);
+    // 인앱 브라우저에서는 "홈 화면에 추가" 자체가 불가능하다. 거기선 InAppBrowserBanner가
+    // "Safari로 열어라"를 이미 띄우고 있으니 안내가 두 개 겹치는 것도 막는다.
+    if (isIOS && !standalone && !isInAppBrowser() && !localStorage.getItem(DISMISSED_KEY))
+      setShow(true);
   }, []);
 
   if (!show) return null;
@@ -39,7 +43,7 @@ export default function InstallPrompt() {
 
   // 지도 위에 떠야 하므로 fixed + z-10. 아래쪽 📸 Post 버튼과 겹치지 않게 위쪽에 둔다.
   return (
-    <div className="fixed top-16 right-4 left-4 z-10 flex items-start gap-3 rounded-lg bg-white/95 px-4 py-3 text-sm text-black shadow-lg">
+    <div className="fixed top-28 right-4 left-4 z-10 flex items-start gap-3 rounded-lg bg-white/95 px-4 py-3 text-sm text-black shadow-lg">
       <p className="flex-1">
         Add RU-Vibe to your home screen — tap <strong>Share</strong>, then{" "}
         <strong>Add to Home Screen</strong>.

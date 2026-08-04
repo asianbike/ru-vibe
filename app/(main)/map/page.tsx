@@ -14,6 +14,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 // service worker 등록 + 아이폰용 "홈 화면에 추가" 안내. 지도와 상관없는 일이라 파일을 나눴다.
 import InstallPrompt from "@/components/InstallPrompt";
+// 인앱 브라우저 경고. /capture에만 두면 늦다 — 로그인 버튼을 누르기 전에 알려야 한다.
+import InAppBrowserBanner from "@/components/InAppBrowserBanner";
 // 지도의 확대 버튼, 로고, 팝업 같은 것들의 생김새를 정의한 CSS.
 // 이걸 빼면 지도 타일은 나오는데 UI가 깨져서 엉뚱한 곳에 겹쳐 보인다.
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -214,6 +216,7 @@ export default function MapPage() {
     <>
       <div ref={containerRef} className="h-dvh w-full" />
 
+      <InAppBrowserBanner />
       <InstallPrompt />
 
       {/* 우상단의 작은 로그인 상태 표시. 지도는 비로그인도 볼 수 있는 화면이라
@@ -222,7 +225,7 @@ export default function MapPage() {
       {signedIn === false && (
         <Link
           href="/login"
-          className="fixed top-4 right-4 z-10 rounded-full bg-white/90 px-3 py-1.5 text-sm text-black shadow"
+          className="fixed top-14 right-4 z-10 rounded-full bg-white/90 px-3 py-1.5 text-sm text-black shadow"
         >
           Sign in
         </Link>
@@ -230,7 +233,7 @@ export default function MapPage() {
       {signedIn && (
         <button
           onClick={signOut}
-          className="fixed top-4 right-4 z-10 rounded-full bg-white/90 px-3 py-1.5 text-sm text-black shadow"
+          className="fixed top-14 right-4 z-10 rounded-full bg-white/90 px-3 py-1.5 text-sm text-black shadow"
         >
           Sign out
         </button>
