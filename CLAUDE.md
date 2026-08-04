@@ -136,9 +136,20 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
   - [x] 스캐폴딩 잔해 제거 (2026-08-03): `app/page.tsx`(Next 샘플 화면)와 `public/*.svg` 삭제, `"/"`는 `next.config.ts`의 `redirects()`로 `/map`행 307. `layout.tsx` 제목이 `"Create Next App"`이었고 `manifest.ts` 설명이 한국어였던 것도 수정. `globals.css`가 `body`에 Arial을 박아 Geist가 다운로드만 되고 안 쓰이던 것도 수정
   - **`/map` ↔ `/capture` 이동 수단이 아직 없음** — 주소를 직접 쳐야 함. 여기서 같이 처리할 것
 - [ ] 11. 배포 (Vercel + Supabase) + 최종 QA
+  - Vercel에 환경변수 3개 등록 (`NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` / `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`)
+  - 도메인 확정 후 **Mapbox 토큰에 URL 제한** 걸기 (지금은 무제한)
+  - 배포 URL을 README 최상단에 추가 — **인턴 지원용으로 스크린샷보다 이게 큼**
+
+## 포트폴리오 (2026-08-03)
+
+작업자가 **인턴 지원서에 이 레포를 낸다.** 그래서 README·커밋 메시지·레포 메타데이터는 채용 담당자/엔지니어가 읽는 산출물로 취급할 것.
+
+- `README.md`는 **영어**, 설치법이 아니라 **아키텍처 + 판단 근거** 중심으로 작성됨. 첫 섹션이 "브라우저가 DB와 직접 통신하므로 권한 검사가 RLS에 있어야 한다". 결정 6개(3장 제한·Storage 경로 규칙·OTP·Realtime·public 버킷·네이티브 카메라)를 전부 *"안 했으면 뭐가 깨지는가"*로 서술. `Known gaps`도 솔직하게 남김
+- GitHub 레포 설명 + 토픽 9개 설정 완료 (`gh repo edit`)
+- **데모 스크린샷은 보류 중.** `docs/*.png`가 `.gitignore`에 있음. 이유: `capture.png`에 집 GPS 좌표가 소수점 5자리(≈1m)로 찍혀 있고, public 레포는 나중에 지워도 히스토리에 남는다. 게다가 핀 5개가 전부 한 집에 몰려 있어 "핀이 몰린 곳 = 핫플"이라는 컨셉이 스크린샷에서 안 읽힘
+  - **해법(합의됨, 미실행)**: 캠퍼스 좌표로 시드 게시물을 넣고 다시 찍기. Easton Ave 바 거리에 6개를 뭉치고 College Ave에 3개, 나머지 캠퍼스에 흩뿌리면 히트맵이 읽힌다. 준비되면 `.gitignore`에서 `docs/*.png` 줄 삭제
 
 ## 나중에 / Open Questions
 
-- **사진 aesthetic 고도화** — 태스크 8 이후. 룩 결정 코드는 `PolaroidCanvas`의 `drawImage` 이후 10줄에 전부 모여 있고 다른 곳은 사진 생김새에 의존하지 않음. 매일 06:00 삭제되니 "옛날 필터로 남은 사진" 문제도 없음. 후보: 폴라로이드 프레임(흰 여백+정사각형), 비네팅, 필름 그레인, `ctx.filter` 색보정, 커스텀 폰트
-- Mapbox API 키 발급 여부
-- Supabase 리전 (US East 추천 — 레이턴시)
+- **사진 aesthetic 고도화** — 룩 결정 코드는 `PolaroidCanvas`의 `drawImage` 이후 10줄에 전부 모여 있고 다른 곳은 사진 생김새에 의존하지 않음. 매일 06:00 삭제되니 "옛날 필터로 남은 사진" 문제도 없음. 후보: 폴라로이드 프레임(흰 여백+정사각형), 비네팅, 필름 그레인, `ctx.filter` 색보정, 커스텀 폰트
+- `posts.mood` 컬럼이 죽어 있음 (핀을 📍로 통일하면서 쓸 데가 없어짐). 태스크 10까지 용처가 안 생기면 컬럼째 삭제
