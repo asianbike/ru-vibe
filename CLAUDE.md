@@ -111,6 +111,7 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 
 **데모 스크린샷 보류 중** (`docs/*.png`가 `.gitignore`에 있음): `capture.png`에 집 GPS가 소수점 5자리(≈1m)로 찍혀 있고 public 레포는 지워도 히스토리에 남는다. 게다가 핀 5개가 한 집에 몰려 있어 "핀이 몰린 곳 = 핫플"이 안 읽힘.
 → **해법(합의됨, 미실행)**: 캠퍼스 좌표로 시드 게시물 — Easton Ave에 6개, College Ave에 3개, 나머지 흩뿌리고 다시 촬영. 준비되면 `.gitignore`에서 `docs/*.png` 삭제
+→ 그때 **`manifest.ts`의 `screenshots`에도 같이 넣을 것**. 넣으면 설치 대화상자가 미리보기 있는 형태로 바뀐다(`form_factor: "wide"` 1장 + 미지정 1장이 필요 — 데스크톱용/모바일용). 없어도 설치는 됨
 
 ## 나중에
 
