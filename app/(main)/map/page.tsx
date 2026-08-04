@@ -7,6 +7,9 @@
 // Mapbox에게 "이 <div> 안에 지도를 그려"라고 시키려면 실물이 생긴 뒤여야 한다.
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
+// next/link = 페이지 이동용 <a>. 그냥 <a href="/capture">를 쓰면 브라우저가 페이지를
+// 통째로 새로 받아오지만(하얀 화면 한 번 깜빡), Link는 필요한 부분만 갈아끼운다.
+import Link from "next/link";
 // 브라우저에서 Supabase에 말을 거는 도구. /capture에서 쓰던 것과 같은 파일이다.
 import { createClient } from "@/lib/supabase/client";
 // 지도의 확대 버튼, 로고, 팝업 같은 것들의 생김새를 정의한 CSS.
@@ -176,5 +179,24 @@ export default function MapPage() {
 
   // h-dvh = 화면 높이 전체. vh와 달리 모바일 브라우저의 주소창이 접혔다 펴져도
   // 지도가 잘리거나 튀지 않는다.
-  return <div ref={containerRef} className="h-dvh w-full" />;
+  //
+  // <> </> = Fragment. return은 값을 하나만 돌려줄 수 있는데 지도와 버튼 둘을 내보내야 해서
+  // 껍데기가 필요하다. <div>로 감싸면 그 div가 실제 요소로 생겨서 지도의 높이 계산이 꼬인다.
+  return (
+    <>
+      <div ref={containerRef} className="h-dvh w-full" />
+
+      {/* fixed = 페이지가 아니라 "화면"에 고정. 지도를 드래그해도 버튼은 안 움직인다.
+          left-1/2 + -translate-x-1/2 = 버튼의 왼쪽 끝을 화면 정중앙에 놓은 뒤,
+          자기 너비의 절반만큼 왼쪽으로 밀어 진짜 가운데를 맞추는 관용구.
+          z-10 = 지도 위로. 없으면 Mapbox 캔버스에 가려진다.
+          bottom-6은 아이폰 홈 인디케이터 바로 위 — 더 낮추면 손가락이 안 닿는다. */}
+      <Link
+        href="/capture"
+        className="fixed bottom-6 left-1/2 z-10 -translate-x-1/2 rounded-full bg-red-700 px-5 py-3 text-white shadow-lg"
+      >
+        📸 Post
+      </Link>
+    </>
+  );
 }

@@ -7,6 +7,8 @@
 // 그냥 let 변수에 담으면 값은 바뀌지만 React가 모르니까 화면이 안 바뀐다.
 // useRef = "화면을 다시 그려도 유지되지만, 바뀌어도 화면을 다시 그리진 않는 상자".
 import { useRef, useState } from "react";
+// 페이지 이동용 <a>. /map으로 돌아가는 길이 없으면 유저는 주소창을 직접 쳐야 한다.
+import Link from "next/link";
 import PolaroidCanvas from "@/components/capture/PolaroidCanvas";
 // 브라우저에서 Supabase(우리 DB + 파일 저장소)에 말을 거는 도구.
 import { createClient } from "@/lib/supabase/client";
@@ -150,6 +152,12 @@ export default function CapturePage() {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4">
+      {/* 화면 왼쪽 위에 고정. 이 페이지는 가운데 정렬(justify-center)이라 흐름 안에 두면
+          사진과 함께 위아래로 움직인다. fixed로 빼면 항상 같은 자리에 있다. */}
+      <Link href="/map" className="fixed top-4 left-4 text-sm underline">
+        ← Map
+      </Link>
+
       <h1 className="text-2xl font-semibold">Capture</h1>
       <div className="w-full max-w-sm">
         {/* onCapture로 우리 함수를 넘겨준다 = "사진 다 그렸으면 이걸 불러라" */}

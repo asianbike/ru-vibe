@@ -151,7 +151,10 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
   - 함수 안의 `6`을 현재 뉴욕 시각으로 잠깐 바꿔 실제 실행 → 네 카운트(posts/archived/photo_files/archive_files) 동시 변화 확인 후 원복
 - [ ] 10. PWA 마무리: 아이콘, service worker, 설치 프롬프트 + **인앱 브라우저 감지 배너**("Open in Safari" — GPS가 죽으므로)
   - [x] 스캐폴딩 잔해 제거 (2026-08-03): `app/page.tsx`(Next 샘플 화면)와 `public/*.svg` 삭제, `"/"`는 `next.config.ts`의 `redirects()`로 `/map`행 307. `layout.tsx` 제목이 `"Create Next App"`이었고 `manifest.ts` 설명이 한국어였던 것도 수정. `globals.css`가 `body`에 Arial을 박아 Geist가 다운로드만 되고 안 쓰이던 것도 수정
-  - **`/map` ↔ `/capture` 이동 수단이 아직 없음** — 주소를 직접 쳐야 함. 여기서 같이 처리할 것
+  - [x] 10-1. `/map` ↔ `/capture` 이동 — `/map`에 fixed 📸 Post 버튼, `/capture`에 ← Map 링크. **공용 탭바(`(main)/layout.tsx`)를 안 만든 이유**: 화면이 2개뿐이라 탭바는 "버튼 1개"를 비싸게 만든 것이고, `/map`이 `h-dvh` 전체화면이라 탭바가 지도를 덮는다. 3번째 화면이 생기면 그때 올릴 것
+  - [ ] 10-2. 아이콘 — 지금 `manifest.ts`의 `icons: []`라 설치 자체가 안 됨
+  - [ ] 10-3. 인앱 브라우저 배너 ("Open in Safari" — GPS가 죽으므로)
+  - [ ] 10-4. service worker + 설치 프롬프트
 - [ ] 11. 배포 (Vercel + Supabase) + 최종 QA
   - Vercel에 환경변수 3개 등록 (`NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` / `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`)
   - **service_role 키 rotate** — 태스크 9 작업 중 채팅에 붙여 넣어서 노출됨. rotate 후 `vault.create_secret`으로 새 키를 다시 넣어야 `reset_daily()`가 계속 돈다
