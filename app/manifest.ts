@@ -6,6 +6,11 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "RU-Vibe",
     // 앱에 표시되는 문구는 전부 영어 — 설치 화면에서 유저가 읽는 문장이다.
     description: "Live party heatmap for Rutgers.",
+    // 이 앱의 신분증. 안 적으면 브라우저가 start_url을 대신 신분증으로 쓴다 —
+    // 그러면 나중에 시작 화면을 /feed 같은 데로 옮기는 순간 브라우저는 그걸 "다른 앱"으로
+    // 보고, 이미 설치한 유저의 홈 화면 아이콘은 죽은 채로 남는다. 지금 값을 박아두면
+    // start_url이 바뀌어도 같은 앱이다.
+    id: "/map",
     // 홈 화면 아이콘을 눌렀을 때 열리는 주소. "/"로 두면 next.config.ts의
     // redirects()가 307로 /map에 다시 보내므로 앱을 열 때마다 왕복이 한 번 더 생긴다.
     start_url: "/map",
