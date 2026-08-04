@@ -69,8 +69,11 @@ export default function LoginPage() {
       return;
     }
 
-    // 로그인의 목적지. /map이 생기면(태스크 7) 그쪽으로 바꾼다.
-    router.push("/capture");
+    // 로그인의 목적지는 /map — 이 앱의 홈이다.
+    // /capture로 바로 보내지 않는 이유: 유저가 로그인한 이유가 항상 "지금 찍겠다"는 아니다.
+    // 게다가 /map은 로그인하면 📸 Post 버튼이 나타나므로, 돌아온 것만으로
+    // "로그인됐다"가 화면에 보인다. 찍는 건 거기서 한 번 더 누르면 된다.
+    router.push("/map");
   }
 
   return (

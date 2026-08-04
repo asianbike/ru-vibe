@@ -5,7 +5,7 @@
 // useEffect = "화면이 실제로 그려진 뒤에 실행해줘"라고 예약하는 React 함수.
 // 왜 필요한가: 아래 return의 <div>는 React가 화면에 붙이기 전까진 실물이 없다.
 // Mapbox에게 "이 <div> 안에 지도를 그려"라고 시키려면 실물이 생긴 뒤여야 한다.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 // next/link = 페이지 이동용 <a>. 그냥 <a href="/capture">를 쓰면 브라우저가 페이지를
 // 통째로 새로 받아오지만(하얀 화면 한 번 깜빡), Link는 필요한 부분만 갈아끼운다.
@@ -81,10 +81,36 @@ export default function MapPage() {
   // 만들어진 지도 객체 자체. 태스크 7-2에서 여기에 마커를 추가하게 된다.
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
+  // 로그인 상태. 값이 3가지인 것에 주의 —
+  // null = 아직 모름(쿠키를 읽는 중), true = 로그인, false = 비로그인.
+  // 처음부터 false로 두면 페이지가 뜨는 순간 "Sign in"이 한 번 번쩍였다가
+  // 로그인된 유저에게 "Sign out"으로 바뀐다. null인 동안은 아무것도 안 그려서 그걸 막는다.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
   // 이 값은 빌드할 때 Next가 실제 토큰 문자열로 치환해 브라우저 JS에 박아 넣는다.
   // pk. 토큰은 원래 공개되는 값이라 괜찮다 — 진짜 방어선은 Mapbox 쪽의
   // 스코프 제한과 URL 제한이지, "아무도 모른다"가 아니다.
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+
+  // 내가 로그인했는지 확인한다. 지도와 상관없는 일이라 useEffect를 따로 둔다
+  // (지도 쪽 effect는 토큰이 없으면 통째로 건너뛰는데, 로그인 여부는 그것과 무관하다).
+  //
+  // getSession()은 네트워크 요청이 아니라 이 브라우저에 저장된 쿠키를 읽어 해독하는 것이다.
+  // getUser()는 그 토큰을 Supabase에 보내 "진짜 맞냐"를 물어본다(왕복 1회 추가).
+  // 여기서 정하는 건 "버튼을 어떤 걸 그릴까"일 뿐이고, 쿠키를 위조해 이 값을 true로
+  // 만들어봤자 INSERT는 DB의 RLS가 막는다. 표시에는 싼 쪽이면 충분하다.
+  useEffect(() => {
+    createClient()
+      .auth.getSession()
+      .then(({ data }) => setSignedIn(Boolean(data.session)));
+  }, []);
+
+  // 로그아웃 = 쿠키에서 세션을 지우는 일. 페이지 이동은 없다 —
+  // /map은 원래 비로그인 공개라 그 자리에 그대로 있으면 되고, 버튼만 바뀌면 된다.
+  async function signOut() {
+    await createClient().auth.signOut();
+    setSignedIn(false);
+  }
 
   useEffect(() => {
     // 토큰이 없으면 Mapbox는 콘솔에만 에러를 남기고 화면은 새까맣게 둔다.
@@ -186,17 +212,42 @@ export default function MapPage() {
     <>
       <div ref={containerRef} className="h-dvh w-full" />
 
-      {/* fixed = 페이지가 아니라 "화면"에 고정. 지도를 드래그해도 버튼은 안 움직인다.
+      {/* 우상단의 작은 로그인 상태 표시. 지도는 비로그인도 볼 수 있는 화면이라
+          여기가 유일하게 "내가 지금 로그인돼 있나"를 알 수 있는 곳이다.
+          signedIn이 null(아직 읽는 중)이면 둘 다 안 그린다. */}
+      {signedIn === false && (
+        <Link
+          href="/login"
+          className="fixed top-4 right-4 z-10 rounded-full bg-white/90 px-3 py-1.5 text-sm text-black shadow"
+        >
+          Sign in
+        </Link>
+      )}
+      {signedIn && (
+        <button
+          onClick={signOut}
+          className="fixed top-4 right-4 z-10 rounded-full bg-white/90 px-3 py-1.5 text-sm text-black shadow"
+        >
+          Sign out
+        </button>
+      )}
+
+      {/* 촬영 버튼은 로그인했을 때만 보여준다. 비로그인 상태에서 눌러봤자
+          proxy.ts가 /login으로 되돌려보내므로, 안 보여주는 게 헛걸음이 없다.
+
+          fixed = 페이지가 아니라 "화면"에 고정. 지도를 드래그해도 버튼은 안 움직인다.
           left-1/2 + -translate-x-1/2 = 버튼의 왼쪽 끝을 화면 정중앙에 놓은 뒤,
           자기 너비의 절반만큼 왼쪽으로 밀어 진짜 가운데를 맞추는 관용구.
           z-10 = 지도 위로. 없으면 Mapbox 캔버스에 가려진다.
           bottom-6은 아이폰 홈 인디케이터 바로 위 — 더 낮추면 손가락이 안 닿는다. */}
-      <Link
-        href="/capture"
-        className="fixed bottom-6 left-1/2 z-10 -translate-x-1/2 rounded-full bg-red-700 px-5 py-3 text-white shadow-lg"
-      >
-        📸 Post
-      </Link>
+      {signedIn && (
+        <Link
+          href="/capture"
+          className="fixed bottom-6 left-1/2 z-10 -translate-x-1/2 rounded-full bg-red-700 px-5 py-3 text-white shadow-lg"
+        >
+          📸 Post
+        </Link>
+      )}
     </>
   );
 }
