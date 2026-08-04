@@ -34,6 +34,8 @@ Rutgers `@scarletmail.rutgers.edu` 전용 실시간 파티 히트맵 PWA.
 - **반사실 질문("만약 private 버킷이었다면")은 실물을 본 뒤에만** 작동함
 - 태스크 6 랩 완료: `proxy.ts` 307 / RLS 42501 / `using(true)` SELECT 통과 / public 버킷 200 을 직접 `curl`로 확인함
 - 태스크 8 랩 완료: publication 없이 `.subscribe()`가 `SUBSCRIBED`를 돌려주는 것을 직접 봄. "구독 등록(Realtime 서버)"과 "데이터 공급(Postgres)"이 별개 계층이라는 것이 여기서 잡힘
+- 태스크 9 랩 완료 (2026-08-03): 행을 지워도 파일이 남는 것을 직접 확인하고 **원인(행/파일이 별개 저장소, 그래서 Storage API 필요)을 스스로 말함**. 규칙 12를 처음 적용 — "숫자가 그대로다" 증상에서 원인을 안 주고 좁히기만 시켰더니, `net._http_response`의 `created`를 UTC로 환산해 "이 200은 옛날 것 → 함수는 요청을 안 보냄 → 가드에서 되돌아감"까지 **혼자 도달**함. 좁히기 훈련이 먹히기 시작한 첫 사례
+- 남은 약점: **비동기**(요청을 보냈다 ≠ 결과가 나왔다)와 **UTC↔ET 환산**. 시각이 걸린 증상에서 특히 헷갈려함
 
 #### 공유 어휘 (2026-08-03 전체 구조 브리핑에서 합의 — 이후 설명은 이걸 재사용할 것)
 
@@ -81,7 +83,19 @@ anon key와 같은 구조 — 키는 이름표고 진짜 방어선은 서버(Sup
 **카메라: 네이티브 카메라 앱** (`<input type="file" accept="image/*" capture="environment">`)
 `getUserMedia` 커스텀 뷰파인더에서 갈아탐. 플래시/야간모드 등 화질이 훨씬 좋고 iOS 삽질이 사라짐. 대신 라이브 뷰파인더 위에 UI를 못 얹음 — 필요해지면 그때 재검토.
 
+**06:00 리셋은 삭제가 아니라 아카이빙** (2026-08-03)
+유저 눈에는 매일 비워지지만 실제로는 **private `archive` 버킷 + `posts_archive` 테이블**로 옮긴다(작업자 보존용, 앱에서 조회 안 함). 유저가 지난 사진을 다시 보는 기능은 **태스크 9 범위 아님** — 화면과 조회가 붙는 새 기능이라 배포 뒤로.
+- **Edge Function을 안 쓴 이유**: 하는 일이 "파일 옮기고 행 옮기고 지우기"뿐인데 Deno 런타임 + 배포 파이프라인 + 그걸 깨울 cron + cron이 쓸 키가 다 따라온다. cron이 어차피 필요하므로 pg_cron 하나로 끝내는 게 부품이 적다
+- **cron은 매시 정각(`0 * * * *`)에 깨우고, 06시 판단은 함수 안에서 뉴욕 시각으로.** cron은 UTC로 도는데 서머타임 때문에 UTC 오프셋이 1년에 두 번 바뀐다 — `0 10 * * *`로 박으면 11월부터 **에러 없이** 1시간 어긋난다
+- **service_role 키는 Vault에** (`select vault.create_secret('<키>','service_role_key')`, 코드는 `vault.decrypted_secrets`에서 읽음). 마이그레이션 파일에 적으면 공개 레포에 마스터 키를 커밋하는 것
+- **새 함수는 기본이 "누구나 실행 가능"** — `revoke execute ... from public, anon, authenticated` 안 하면 anon이 RPC로 `reset_daily()`를 불러 앱을 비울 수 있다
+
 ## 하드 러닝 (반복 삽질 금지)
+
+**행을 지워도 파일은 안 지워진다** (2026-08-03) — `posts` 행과 Storage 파일은 서로 모르는 별개 저장소이고 `photo_url`은 그냥 텍스트다. `delete from posts` 후에도 그 public URL은 200으로 사진을 계속 내놓는다(orphan). `storage.objects` 행을 직접 지워도 실제 바이트는 남는다. **파일을 진짜 움직이려면 Storage API에 HTTP 요청**을 보내야 하고, 그래서 Postgres에 `pg_net`이 필요하다.
+- `net.http_post`는 **비동기**. 요청 id(1, 2, …)만 즉시 돌려주고 결과는 나중에 `net._http_response`에 도착한다. **실패해도 그 자리에서 에러가 안 난다** → `select status_code, created from net._http_response order by created desc limit 5;` 로 확인. `created`는 UTC라 ET로 환산해서 "방금 것"인지 봐야 한다(옛 응답을 성공으로 착각하기 쉬움)
+- 이동은 `POST /storage/v1/object/move` + `{bucketId, sourceKey, destinationBucket, destinationKey}`. 파일당 1콜(수천 장 되면 bulk로 교체)
+- **404 두 종류를 구분할 것**: 옮겨진 파일의 옛 URL → `NoSuchKey`(버킷은 있는데 파일 없음). private 버킷의 public URL → `NoSuchBucket`(`/object/public/…` 창구는 public 버킷만 안다. 버킷 이름 탐색을 막으려 일부러 "없다"고 답함)
 
 **폰 실기기 테스트** — 카메라/GPS는 **secure context**(HTTPS 또는 localhost)에서만 동작. 폰에서 `http://<맥 IP>:3000`은 페이지만 보이고 기능은 죽음.
 ```bash
@@ -131,12 +145,16 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
   - [x] 7-1. `mapbox-gl` 설치 + 빈 지도 (`app/(main)/map/page.tsx`, 캠퍼스 전체가 보이는 중심/배율)
   - [x] 7-2. `posts` 조회 → 📍 핀 + 클릭 시 사진 팝업 (`addMarker()`, 태스크 8이 그대로 재사용)
 - [x] 8. Realtime 구독: 새 게시물 마커 실시간 추가 (`supabase_realtime` publication에 `posts` 추가 — 이걸 안 하면 `.subscribe()`는 `SUBSCRIBED`를 돌려주면서 데이터만 안 온다)
-- [ ] 9. 매일 06:00 초기화: Edge Function (cron) + Storage 삭제
+- [x] 9. 매일 06:00 초기화: **Edge Function 대신 pg_cron + pg_net** (Postgres 안에서 전부 해결, 런타임 추가 0)
+  - [x] 9-1. 아카이브 목적지 (`20260803000000_archive_destinations.sql`) — private `archive` 버킷 + `posts_archive` 테이블(`like public.posts`, grant 없음 + RLS on)
+  - [x] 9-2. `reset_daily()` + cron (`20260803010000_daily_reset_cron.sql`) — 파일은 Storage API `move`로 photos→archive, 행은 `posts_archive`로 복사 후 `delete from posts`
+  - 함수 안의 `6`을 현재 뉴욕 시각으로 잠깐 바꿔 실제 실행 → 네 카운트(posts/archived/photo_files/archive_files) 동시 변화 확인 후 원복
 - [ ] 10. PWA 마무리: 아이콘, service worker, 설치 프롬프트 + **인앱 브라우저 감지 배너**("Open in Safari" — GPS가 죽으므로)
   - [x] 스캐폴딩 잔해 제거 (2026-08-03): `app/page.tsx`(Next 샘플 화면)와 `public/*.svg` 삭제, `"/"`는 `next.config.ts`의 `redirects()`로 `/map`행 307. `layout.tsx` 제목이 `"Create Next App"`이었고 `manifest.ts` 설명이 한국어였던 것도 수정. `globals.css`가 `body`에 Arial을 박아 Geist가 다운로드만 되고 안 쓰이던 것도 수정
   - **`/map` ↔ `/capture` 이동 수단이 아직 없음** — 주소를 직접 쳐야 함. 여기서 같이 처리할 것
 - [ ] 11. 배포 (Vercel + Supabase) + 최종 QA
   - Vercel에 환경변수 3개 등록 (`NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` / `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`)
+  - **service_role 키 rotate** — 태스크 9 작업 중 채팅에 붙여 넣어서 노출됨. rotate 후 `vault.create_secret`으로 새 키를 다시 넣어야 `reset_daily()`가 계속 돈다
   - 도메인 확정 후 **Mapbox 토큰에 URL 제한** 걸기 (지금은 무제한)
   - 배포 URL을 README 최상단에 추가 — **인턴 지원용으로 스크린샷보다 이게 큼**
 
@@ -152,4 +170,5 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 ## 나중에 / Open Questions
 
 - **사진 aesthetic 고도화** — 룩 결정 코드는 `PolaroidCanvas`의 `drawImage` 이후 10줄에 전부 모여 있고 다른 곳은 사진 생김새에 의존하지 않음. 매일 06:00 삭제되니 "옛날 필터로 남은 사진" 문제도 없음. 후보: 폴라로이드 프레임(흰 여백+정사각형), 비네팅, 필름 그레인, `ctx.filter` 색보정, 커스텀 폰트
-- `posts.mood` 컬럼이 죽어 있음 (핀을 📍로 통일하면서 쓸 데가 없어짐). 태스크 10까지 용처가 안 생기면 컬럼째 삭제
+- `posts.mood` 컬럼이 죽어 있음 (핀을 📍로 통일하면서 쓸 데가 없어짐). 태스크 10까지 용처가 안 생기면 컬럼째 삭제 — 지울 때 `posts_archive`도 같이 (`insert into posts_archive select *`가 컬럼 순서에 의존하므로 한쪽만 지우면 06:00 리셋이 깨진다)
+- **아카이브를 유저에게 보여주는 기능**은 태스크 11 이후. `archive` 버킷이 private이라 signed URL 발급이 필요하고, `posts_archive`엔 grant가 없어서 조회 경로부터 새로 만들어야 함
