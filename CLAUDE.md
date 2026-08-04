@@ -92,7 +92,7 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 - [x] 7. Map — Mapbox 빈 지도 + `posts` 조회 → 📍 핀 + 클릭 시 사진 팝업(`addMarker()`)
 - [x] 8. Realtime 구독 (`supabase_realtime` publication에 `posts` 추가 — 안 하면 `SUBSCRIBED`만 돌려주고 데이터는 안 온다)
 - [x] 9. 매일 06:00 리셋 — pg_cron + pg_net. `20260803000000_archive_destinations.sql`(private `archive` 버킷 + `posts_archive`) / `20260803010000_daily_reset_cron.sql`(`reset_daily()`)
-- [ ] 10. PWA 마무리
+- [x] 10. PWA 마무리
   - [x] 스캐폴딩 잔해 제거 — `app/page.tsx`·`public/*.svg` 삭제, `"/"`는 `next.config.ts`의 `redirects()`로 `/map`행 307
   - [x] 10-1. `/map` ↔ `/capture` 이동 + 로그인 상태 표시. **공용 탭바를 안 만든 이유**: 화면이 2개뿐이라 탭바는 "버튼 1개"를 비싸게 만든 것이고, `/map`이 `h-dvh` 전체화면이라 탭바가 지도를 덮는다. 3번째 화면이 생기면 그때
   - [x] 10-2. 아이콘 — **아이콘은 설치 조건**(비어 있으면 "홈 화면에 추가"가 안 뜬다). `next/og`(Next에 이미 포함, 새 의존성 0)로 한 번 그려 `public/icon-{192,512}.png` + `app/apple-icon.png`로 커밋 — 런타임 생성 없음. 아이폰은 manifest의 `icons`를 안 보고 `app/apple-icon.png` 파일 이름을 Next가 잡아 `<link rel="apple-touch-icon">`을 넣는다. `start_url`은 `/`(→307) 대신 `/map` 직행. maskable 아이콘은 안 넣음 — 안드로이드에서 잘려 보이면 그때
