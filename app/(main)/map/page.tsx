@@ -12,6 +12,8 @@ import mapboxgl from "mapbox-gl";
 import Link from "next/link";
 // 브라우저에서 Supabase에 말을 거는 도구. /capture에서 쓰던 것과 같은 파일이다.
 import { createClient } from "@/lib/supabase/client";
+// service worker 등록 + 아이폰용 "홈 화면에 추가" 안내. 지도와 상관없는 일이라 파일을 나눴다.
+import InstallPrompt from "@/components/InstallPrompt";
 // 지도의 확대 버튼, 로고, 팝업 같은 것들의 생김새를 정의한 CSS.
 // 이걸 빼면 지도 타일은 나오는데 UI가 깨져서 엉뚱한 곳에 겹쳐 보인다.
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -211,6 +213,8 @@ export default function MapPage() {
   return (
     <>
       <div ref={containerRef} className="h-dvh w-full" />
+
+      <InstallPrompt />
 
       {/* 우상단의 작은 로그인 상태 표시. 지도는 비로그인도 볼 수 있는 화면이라
           여기가 유일하게 "내가 지금 로그인돼 있나"를 알 수 있는 곳이다.

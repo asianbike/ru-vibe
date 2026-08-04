@@ -97,7 +97,7 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
   - [x] 10-1. `/map` ↔ `/capture` 이동 + 로그인 상태 표시. **공용 탭바를 안 만든 이유**: 화면이 2개뿐이라 탭바는 "버튼 1개"를 비싸게 만든 것이고, `/map`이 `h-dvh` 전체화면이라 탭바가 지도를 덮는다. 3번째 화면이 생기면 그때
   - [x] 10-2. 아이콘 — **아이콘은 설치 조건**(비어 있으면 "홈 화면에 추가"가 안 뜬다). `next/og`(Next에 이미 포함, 새 의존성 0)로 한 번 그려 `public/icon-{192,512}.png` + `app/apple-icon.png`로 커밋 — 런타임 생성 없음. 아이폰은 manifest의 `icons`를 안 보고 `app/apple-icon.png` 파일 이름을 Next가 잡아 `<link rel="apple-touch-icon">`을 넣는다. `start_url`은 `/`(→307) 대신 `/map` 직행. maskable 아이콘은 안 넣음 — 안드로이드에서 잘려 보이면 그때
   - [x] 10-3. 인앱 브라우저 배너 — `/capture`에만(GPS가 필요한 유일한 화면). `IN_APP_BROWSER` 정규식으로 userAgent 판별, **`useEffect` 안에서** 해야 함(서버엔 `navigator`가 없어 하이드레이션이 어긋난다). 촬영 *전에* 띄운다 — 찍고 나서 옮기면 사진이 날아가니까. iOS가 막아서 코드로 Safari를 열 수는 없고 안내만 가능. "링크 복사" 버튼은 안 넣음
-  - [ ] 10-4. service worker + 설치 프롬프트
+  - [x] 10-4. service worker + 설치 — `public/sw.js`(캐시 0, `fetch` 핸들러가 **존재하는 것 자체**가 Chrome의 설치 조건) + `components/InstallPrompt.tsx`(등록 + 아이폰 안내). **`beforeinstallprompt` 커스텀 버튼은 안 만듦** — 안드로이드/데스크톱 Chrome은 주소창에 설치 아이콘을 직접 띄운다. 아이폰만 프롬프트가 없어서 말로 안내가 필요(`navigator.standalone`으로 이미 설치했는지 확인, 닫으면 localStorage에 기록). 캐시를 안 하는 이유: 화면이 전부 "지금" 데이터라 캐시된 화면은 느린 화면보다 나쁘다
 - [ ] 11. 배포(Vercel) + 최종 QA
   - 환경변수 3개 등록 (`NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` / `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`)
   - **service_role 키 rotate** — 태스크 9 중 채팅에 노출됨. rotate 후 `vault.create_secret`으로 다시 넣어야 `reset_daily()`가 계속 돈다
