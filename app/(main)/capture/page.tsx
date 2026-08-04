@@ -6,7 +6,7 @@
 // useState = "화면에 반영돼야 하는 값"을 담는 상자를 만드는 React 함수.
 // 그냥 let 변수에 담으면 값은 바뀌지만 React가 모르니까 화면이 안 바뀐다.
 // useRef = "화면을 다시 그려도 유지되지만, 바뀌어도 화면을 다시 그리진 않는 상자".
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 // 페이지 이동용 <a>. /map으로 돌아가는 길이 없으면 유저는 주소창을 직접 쳐야 한다.
 import Link from "next/link";
 import PolaroidCanvas from "@/components/capture/PolaroidCanvas";
@@ -16,6 +16,20 @@ import { createClient } from "@/lib/supabase/client";
 // 지도 핀 아이콘으로 쓸 이모지 후보들.
 // 유저가 직접 고르게 하지 않고 랜덤으로 뽑는다 — 고민하게 만들면 게시가 느려진다.
 const MOODS = ["🔥", "🎉", "🍻", "🎶", "😎", "💃"];
+
+// 인스타/Gmail 같은 앱 "안에서" 열리는 브라우저를 알아내는 표시들.
+//
+// 왜 필요한가: 이런 브라우저에서는 GPS가 죽는다. 그것도 조용히 —
+// 권한 팝업이 아예 안 뜨고, 성공/실패 콜백 둘 다 안 불려서 화면이 "locating…"에
+// 영원히 멈춘다(아래 getCurrentPosition의 timeout은 권한을 허용한 *다음*부터 세기 때문에
+// 타이머조차 시작을 안 한다). 유저 눈에는 그냥 "앱이 고장났다"로 보인다.
+// 카메라는 멀쩡히 되기 때문에 더 헷갈린다.
+//
+// 브라우저가 자기를 소개하는 문자열(navigator.userAgent)에 앱 이름이 붙어 오는 걸로 판별한다.
+// 이건 유저가 마음대로 바꿀 수 있는 값이라 보안에는 절대 못 쓰지만, 여기서 하는 일은
+// "안내문을 띄울까 말까"라 틀려도 손해가 없다.
+// GSA = Google Search App(구글 앱·Gmail이 링크를 여는 그것).
+const IN_APP_BROWSER = /Instagram|FBAN|FBAV|Messenger|GSA\/|Snapchat|TikTok|LinkedIn/i;
 
 export default function CapturePage() {
   // useState(초기값)은 [현재값, 값을바꾸는함수] 두 개를 순서대로 돌려준다.
@@ -37,6 +51,14 @@ export default function CapturePage() {
   // useState가 아니라 useRef인 이유: 이 값이 바뀌어도 화면에 새로 그릴 게 없다.
   // (DOM 요소를 state에 넣으면 매번 불필요한 렌더가 돈다)
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // 인앱 브라우저인가. useEffect 안에서 판별하는 이유가 중요하다 —
+  // 이 페이지는 "use client"여도 첫 HTML은 Next 서버가 미리 만들어 보낸다. 서버에는
+  // navigator가 없으니 서버는 항상 false로 그리는데, 브라우저가 그 HTML을 이어받을 때
+  // (하이드레이션) 서버가 그린 것과 다른 결과가 나오면 React가 화면을 통째로 버리고
+  // 다시 그린다. useEffect는 그 이어받기가 끝난 뒤에 도니까 어긋날 일이 없다.
+  const [inAppBrowser, setInAppBrowser] = useState(false);
+  useEffect(() => setInAppBrowser(IN_APP_BROWSER.test(navigator.userAgent)), []);
 
   // 사진이 캔버스에 다 그려진 직후 PolaroidCanvas가 이 함수를 불러준다.
   // (재촬영하면 또 불리니까 무드도 좌표도 새로 뽑힌다)
@@ -159,6 +181,17 @@ export default function CapturePage() {
       </Link>
 
       <h1 className="text-2xl font-semibold">Capture</h1>
+
+      {/* 사진을 찍기 "전에" 보여줘야 의미가 있다. 다 찍고 나서 알려주면 유저는
+          Safari로 옮긴 뒤 처음부터 다시 찍어야 한다(찍은 사진은 이 탭 메모리에만 있다).
+          앱에서 Safari를 코드로 열 수는 없다 — iOS가 막아놨다. 그래서 안내밖에 못 한다. */}
+      {inAppBrowser && (
+        <p className="w-full max-w-sm rounded border border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Location doesn&apos;t work inside in-app browsers. Tap{" "}
+          <strong>•••</strong> and choose <strong>Open in Safari</strong> before you shoot.
+        </p>
+      )}
+
       <div className="w-full max-w-sm">
         {/* onCapture로 우리 함수를 넘겨준다 = "사진 다 그렸으면 이걸 불러라" */}
         <PolaroidCanvas onCapture={handleCapture} />
