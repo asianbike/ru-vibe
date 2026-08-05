@@ -106,6 +106,19 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
   - 도메인 확정 후 **Mapbox 토큰에 URL 제한** (지금 무제한). 개발 중엔 걸면 안 됨 — `cloudflared` 랜덤 도메인이라 지도가 죽는다
   - 배포 URL을 README 최상단에 — 인턴 지원용으로 스크린샷보다 이게 큼
 
+- [ ] 12. **이해 점검 문답** (2026-08-04 작업자 요청). 본인 표현: *"이 프로젝트를 완벽하게 이해하지 못하고 있는 것 같다"*. 배포·데모·레쥬메까지 끝낸 뒤 진행 — 실물이 떠 있어야 규칙 5(보게 하라)를 쓸 수 있다. 목표 수준: **인턴 면접에서 "이 프로젝트 설명해보세요"에 막힘없이 답하는 것**. 다룰 주제:
+  1. 요청 1회의 전 경로 — 주소창 → `proxy.ts` → 페이지 → Supabase, 각 단계에서 누가 뭘 결정하나
+  2. 왜 방어가 RLS에 있어야 하나 — ①이 ②를 건너뛴다는 것의 의미
+  3. 서버 컴포넌트 / 클라이언트 컴포넌트 / hydration — `"use client"`가 실제로 바꾸는 것
+  4. React state·`useEffect`·의존성 배열 — 언제 다시 도나 (탭 두 개 실험, UA 실험이 여기 속함)
+  5. 저장 장소 3개: state / 쿠키 / localStorage — **2026-08-04 완료**. `@supabase/ssr`이 세션을 localStorage 대신 쿠키에 넣는 이유까지 도달
+  6. RLS 정책문 읽기 — `auth.uid()`, `using` vs `with check`
+  7. Realtime — publication(공급)과 subscription(등록)이 별개 계층
+  8. Storage — public/private, 경로 정책, orphan 파일
+  9. pg_cron + pg_net의 비동기 (작업자 약점으로 기록됨)
+  10. 빌드 타임 치환(`NEXT_PUBLIC_`)과 배포 환경변수
+  11. 각 결정의 트레이드오프를 **말로** 설명하기 — README의 6개 결정이 그대로 면접 답변
+
 ## 포트폴리오
 
 작업자가 **인턴 지원서에 이 레포를 낸다.** README·커밋 메시지·레포 메타데이터는 채용 담당자가 읽는 산출물로 취급할 것.
