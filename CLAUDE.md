@@ -74,6 +74,14 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 
 **Next 16은 `middleware.ts` → `proxy.ts`** (export 이름도 `proxy`).
 
+**신형 Supabase API 키는 JWT가 아니다** (2026-08-04) — `sb_publishable_`/`sb_secret_`는 점(`.`)이 0개인 그냥 긴 문자열이라 서버가 목록에서 찾아보는 방식이다. 창구가 다르다:
+- `Authorization: Bearer` = **JWT 전용**. 여기에 신형 키를 넣으면 Storage가 세 조각으로 쪼개려다 실패하고 HTTP **400 + `{"message":"Invalid Compact JWS"}`**. 키가 틀린 게 아니라 줄을 잘못 선 것이라 증상만 보면 원인이 안 보인다
+- `apikey` = **신형 키가 갈 곳**
+- `supabase-js`는 알아서 맞춰준다. **`pg_net`으로 HTTP를 손수 조립할 때만** 우리가 정해줘야 한다 — `reset_daily()`가 그 유일한 자리
+- Storage는 바깥 HTTP status와 본문의 `"statusCode"`가 자주 안 맞는다(400인데 본문엔 403/404). 믿을 건 바깥, 진단에 쓸 건 `message`
+
+**관문 테스트 설계: 뒤에서 실패시켜 앞을 검증한다** (2026-08-04) — 인증만 확인하고 싶은데 진짜로 성공시키면 파일이 옮겨져 지도가 깨지는 상황. **다음 관문에서 반드시 실패하는 입력**(`sourceKey: 'does-not-exist.jpg'` — 실제 경로는 `<uid>/<uuid>.jpg` 꼴이라 존재 불가)을 넣으면 답이 둘로 갈린다: `Invalid Compact JWS`(인증에서 막힘) / `NoSuchKey`(인증 통과, 파일 찾기까지 감). **404라고 다 같은 404가 아니고 어느 404냐가 정보다.**
+
 **인앱 브라우저(Gmail/인스타 앱 안의 브라우저)에서 geolocation이 죽는다** — 팝업도 안 뜨고 성공/실패 콜백 둘 다 안 불려 `locating…`에 무한 정지(`timeout`은 권한 허용 *이후*부터 세서 타이머조차 시작 안 함). 위치 권한이 사이트가 아니라 그 앱 자체를 따라감. 카메라는 되는데 GPS만 죽어 원인이 안 보인다. → Safari로 열어야 하고, 세션 쿠키는 브라우저별로 따로라 재로그인 필요.
 
 **Canvas** — `MAX_EDGE=2048`로 긴 변 제한 필수(iOS Safari는 캔버스가 크면 **에러 없이 빈 이미지**를 내놓고 48MP 아이폰 사진이 여기 걸림). `createImageBitmap`엔 `imageOrientation:"from-image"` 필요(없으면 세로 사진이 눕는다).
@@ -102,7 +110,7 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
   - [ ] **폰 실기기 재확인 남음**: 촬영→Post→핀(하루 3장 제한에 걸려 못 함), 홈 화면 설치, `/map`의 인앱 배너
 - [ ] 11. 배포(Vercel) + 최종 QA
   - 환경변수 3개 등록 (`NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` / `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`)
-  - **service_role 키 rotate** — 태스크 9 중 채팅에 노출됨. rotate 후 `vault.create_secret`으로 다시 넣어야 `reset_daily()`가 계속 돈다
+  - [x] **service_role 키 rotate 완료** (2026-08-04) — 태스크 9 중 채팅에 노출된 키. 신형 `sb_secret_` 발급 → `vault.update_secret()`로 교체 → legacy 탭 전체 비활성화(유출된 키는 여기서 죽음). legacy는 `anon`/`service_role`을 따로 못 끄는데, 앱이 이미 `sb_publishable_`을 쓰고 있어서 꺼도 아무것도 안 깨졌다
   - [x] **Mapbox 토큰 URL 제한** — `https://ru-vibe.vercel.app` + `http://localhost:3000`. 확인은 **타일 주소**로 해야 한다: `/styles/v1/mapbox/dark-v11`(스타일 JSON)은 제한이 안 걸려 아무 Referer로도 200이고, `/styles/v1/mapbox/dark-v11/tiles/256/12/1204/1541`이 403 `{"message":"Forbidden"}`을 낸다. 엉뚱한 주소로 재고 "제한이 안 걸렸다"고 오판했던 곳
     - Vercel **미리보기 배포**(`ru-vibe-<해시>.vercel.app`)는 목록에 없어서 지도가 새까맣게 나온다
   - [x] 배포 URL을 README 최상단에 (`https://ru-vibe.vercel.app`) + 로드맵 갱신(6시 리셋을 아직 "Edge Function"이라 적어놨었음)
