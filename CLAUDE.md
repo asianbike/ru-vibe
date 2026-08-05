@@ -20,7 +20,9 @@ Rutgers `@scarletmail.rutgers.edu` 전용 실시간 파티 히트맵 PWA. `/map`
 
 - **강한 곳**: 파일에 글자로 적힌 규칙(SQL 정책문, 헤더 값, 파일 흐름). **약한 곳**: 코드에 안 보이는 개입 계층이 "언제 누가 부르는지"
 - 완료한 랩: 태스크 6(`proxy.ts` 307 / RLS 42501 / `using(true)` SELECT / public 버킷 200을 `curl`로 확인) · 태스크 8(publication 없이도 `.subscribe()`가 `SUBSCRIBED`를 돌려주는 것 — "구독 등록"과 "데이터 공급"이 별개 계층) · 태스크 9(행을 지워도 파일이 남는 것을 보고 원인을 스스로 말함. 규칙 7을 처음 적용했는데 `net._http_response`의 UTC를 환산해 "함수가 요청을 안 보냈다"까지 혼자 도달)
-- 남은 약점: **비동기**(요청을 보냈다 ≠ 결과가 나왔다), **UTC↔ET 환산**
+- 2026-08-04: **저장 장소 3개(state / 쿠키 / localStorage)** 를 Network 탭의 Request Headers로 직접 확인. `@supabase/ssr`이 세션을 쿠키에 넣는 이유(=②가 읽어야 하니까)까지 스스로 연결함. `net._http_response`의 UTC 시각 확인도 이번엔 시키지 않았는데 먼저 함
+- 남은 약점: **비동기**(요청을 보냈다 ≠ 결과가 나왔다). UTC↔ET는 개선 중
+- **반복해서 나온 패턴 3회**(2026-08-04): apple-touch-icon 0/1, UA 새로고침, Mapbox 스타일 JSON. 전부 *"안 막혔다/안 나온다"의 원인이 설정이 아니라 **내가 엉뚱한 곳을 재고 있었던 것***. 다음에 같은 증상이 나오면 "설정 의심" 전에 **"내가 맞는 문을 두드렸나"** 부터 묻게 할 것
 - **공유 어휘** (설명할 때 재사용): **장소 3개** — ① 브라우저 / ② Next 서버 / ③ Supabase. 핵심은 ①이 ②를 건너뛰고 ③과 직접 통신한다는 것. **개입 계층 4개** — `proxy.ts`(②, UX용·우회 가능) / `posts` RLS(③) / Storage 정책(③) / `supabase_realtime` publication(③)
 - 진로 판단: **깊이보다 넓이**(프로덕트 개수). 웹소켓 내부·논리복제 같은 건 보류하고, 대신 규칙 7로 디버깅 자립을 보완
 
@@ -41,6 +43,15 @@ Rutgers `@scarletmail.rutgers.edu` 전용 실시간 파티 히트맵 PWA. `/map`
 **Mapbox 토큰: `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`** (public `pk.`, 시크릿 스코프 0개). `NEXT_PUBLIC_`은 "공개해도 된다"가 아니라 **빌드 시 값을 브라우저 JS에 글자 그대로 박으라는 명령** — 스코프를 하나라도 켜면 그 권한이 전 세계에 뿌려진다. 타일 렌더링은 스코프 없이 되는 기본 권한.
 **좌표 순서: Mapbox는 `[lng, lat]`, `posts`는 `lat`/`lng`.** 뒤집어도 에러 없이 지도 반대편에 찍힌다.
 커스텀 element 마커엔 **`anchor: "bottom"` 필수** (기본값은 요소 한가운데를 좌표에 맞추는데 📍는 아래 끝이 가리키는 그림). 핀은 무드별로 나누지 않고 **전부 📍 하나**. `posts.mood`는 그래서 죽어 있다가 **2026-08-04에 삭제**(`20260804010000_drop_mood.sql`) — `posts`와 `posts_archive` 양쪽에서 동시에. `reset_daily()`의 `insert into posts_archive select *`가 **이름이 아니라 순서**로 짝을 맞춰서 한쪽만 지우면 06:00 리셋이 통째로 깨진다.
+
+**PWA** — 설치 조건 4개: manifest(`display: standalone`) / 아이콘 / service worker(Chrome만) / **HTTPS**. `localhost`는 예외라 배포 전엔 진짜 설치를 확인할 수 없다.
+- 아이콘은 장식이 아니라 **설치 조건**. `next/og`로 한 번 그려 `public/icon-{192,512}.png` + `app/apple-icon.png`로 커밋(런타임 생성 0). **아이폰은 manifest의 `icons`를 안 보고** `app/apple-icon.png`라는 *파일 이름*을 Next가 잡아 `<link rel="apple-touch-icon">`을 넣는다
+- `manifest.ts`에 **`id` 고정** — 없으면 `start_url`이 앱의 신분증이 되어, 시작 화면을 옮기는 순간 설치된 아이콘이 전부 고아가 된다
+- `sw.js`는 **캐시 0**. 화면이 전부 "지금" 데이터라 캐시된 화면은 느린 화면보다 나쁘다. `fetch` 핸들러가 **있다는 사실 자체**가 Chrome의 설치 조건
+- **`beforeinstallprompt` 커스텀 버튼 없음** — 안드로이드/데스크톱 Chrome은 주소창에 설치 아이콘을 직접 띄운다. **아이폰만 프롬프트가 없어서** 말로 안내가 필요하고, iOS는 코드로 "홈 화면에 추가"를 실행하는 걸 금지한다
+- **안내의 ×는 삭제가 아니라 접기**(`📲 Install` 알약). 유저 대부분이 PWA 설치를 해본 적이 없어서, 한 번 닫아 사라지면 방법을 다시 찾을 길이 없다
+
+**폴라로이드 룩** (`PolaroidCanvas`) — 실제 Polaroid 600 치수(종이 88×108mm / 사진 79×79mm)를 비율로 박아 정사각형 카드를 그린다. 색은 `ctx.filter`(채도·대비↓) + 합성모드 4단계: `multiply` 찬 색으로 **황색 빼기** → `lighten` 어두운 청록으로 **검정 들어올리기**(물 빠진 필름의 정체) → `screen` 연분홍으로 하이라이트(그림자는 차갑고 highlight는 따뜻한 split tone) → 비네팅 → `overlay` 그레인(96px 노이즈 타일 반복 — 225만 픽셀 루프보다 훨씬 쌈). 날짜는 사진 위가 아니라 **아래 여백**에 — 배경색을 우리가 아니까 stroke 테두리 트릭이 필요 없다. 다이얼은 `gradeFilm` 안의 alpha 값들이고 **한 번에 하나씩** 만질 것.
 
 **카메라: 네이티브 카메라 앱** (`<input type="file" accept="image/*" capture="environment">`). `getUserMedia` 커스텀 뷰파인더에서 갈아탐 — 화질이 훨씬 좋고 iOS 삽질이 사라짐. 대신 라이브 뷰파인더 위에 UI를 못 얹음.
 
@@ -94,40 +105,31 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 
 ## 태스크 체크리스트
 
-- [x] 1~4. 스캐폴딩·PWA manifest / Supabase 연결 / OTP 인증(scarletmail 제한) / `posts` + RLS(3장/일)
-- [x] 5. Capture 화면 — `PolaroidCanvas`(네이티브 카메라 + 날짜/시간 오버레이) + geolocation
-- [x] 6. Storage 업로드 + `posts` INSERT — `photos` 버킷 정책, Post 버튼, `/capture` 보호(`proxy.ts`). 폰 실기기 확인 완료
-- [x] 7. Map — Mapbox 빈 지도 + `posts` 조회 → 📍 핀 + 클릭 시 사진 팝업(`addMarker()`)
-- [x] 8. Realtime 구독 (`supabase_realtime` publication에 `posts` 추가 — 안 하면 `SUBSCRIBED`만 돌려주고 데이터는 안 온다)
-- [x] 9. 매일 06:00 리셋 — pg_cron + pg_net. `20260803000000_archive_destinations.sql`(private `archive` 버킷 + `posts_archive`) / `20260803010000_daily_reset_cron.sql`(`reset_daily()`)
-- [x] 10. PWA 마무리
-  - [x] 스캐폴딩 잔해 제거 — `app/page.tsx`·`public/*.svg` 삭제, `"/"`는 `next.config.ts`의 `redirects()`로 `/map`행 307
-  - [x] 10-1. `/map` ↔ `/capture` 이동 + 로그인 상태 표시. **공용 탭바를 안 만든 이유**: 화면이 2개뿐이라 탭바는 "버튼 1개"를 비싸게 만든 것이고, `/map`이 `h-dvh` 전체화면이라 탭바가 지도를 덮는다. 3번째 화면이 생기면 그때
-  - [x] 10-2. 아이콘 — **아이콘은 설치 조건**(비어 있으면 "홈 화면에 추가"가 안 뜬다). `next/og`(Next에 이미 포함, 새 의존성 0)로 한 번 그려 `public/icon-{192,512}.png` + `app/apple-icon.png`로 커밋 — 런타임 생성 없음. 아이폰은 manifest의 `icons`를 안 보고 `app/apple-icon.png` 파일 이름을 Next가 잡아 `<link rel="apple-touch-icon">`을 넣는다. `start_url`은 `/`(→307) 대신 `/map` 직행. maskable 아이콘은 안 넣음 — 안드로이드에서 잘려 보이면 그때
-  - [x] 10-3. 인앱 브라우저 배너 (`components/InAppBrowserBanner.tsx` + `lib/in-app-browser.ts`) — **`/map`과 `/capture` 둘 다.** 처음엔 `/capture`에만 뒀는데 폰 테스트에서 너무 늦다는 게 드러남: 지도 보고 **로그인까지 한 뒤에** Safari로 옮기라는 말을 들으면 쿠키가 브라우저별로 따로라 **재로그인**해야 한다. userAgent 판별은 **`useEffect` 안에서**(서버엔 `navigator`가 없어 하이드레이션이 어긋난다). iOS가 막아서 코드로 Safari를 열 수는 없고 안내만 가능
-  - [x] 10-4. service worker + 설치 — `public/sw.js`(캐시 0, `fetch` 핸들러가 **존재하는 것 자체**가 Chrome의 설치 조건) + `components/InstallPrompt.tsx`(등록 + 아이폰 안내). **`beforeinstallprompt` 커스텀 버튼은 안 만듦** — 안드로이드/데스크톱 Chrome은 주소창에 설치 아이콘을 직접 띄운다. 아이폰만 프롬프트가 없어서 말로 안내가 필요(`navigator.standalone`으로 이미 설치했는지 확인). **×는 삭제가 아니라 접기** — `📲 Install` 알약으로 줄어들고 다시 펼 수 있다. 유저 대부분이 PWA 설치를 해본 적이 없어서 한 번 닫아 사라지면 방법을 다시 찾을 길이 없다(작업자 본인이 폰 테스트에서 헤맴). 캐시를 안 하는 이유: 화면이 전부 "지금" 데이터라 캐시된 화면은 느린 화면보다 나쁘다
-  - [x] 촬영 전 위치 안내 한 줄 — iOS는 셔터를 누르는 즉시 권한 팝업을 띄우는데, 이유를 모르고 "허용 안 함"을 누르면 **브라우저가 그 답을 기억해서 다시 안 물어본다**(설정에 들어가야 풀림)
-  - [ ] **폰 실기기 재확인 남음**: 촬영→Post→핀(하루 3장 제한에 걸려 못 함), 홈 화면 설치, `/map`의 인앱 배너
-- [ ] 11. 배포(Vercel) + 최종 QA
-  - 환경변수 3개 등록 (`NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` / `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`)
-  - [x] **service_role 키 rotate 완료** (2026-08-04) — 태스크 9 중 채팅에 노출된 키. 신형 `sb_secret_` 발급 → `vault.update_secret()`로 교체 → legacy 탭 전체 비활성화(유출된 키는 여기서 죽음). legacy는 `anon`/`service_role`을 따로 못 끄는데, 앱이 이미 `sb_publishable_`을 쓰고 있어서 꺼도 아무것도 안 깨졌다
-  - [x] **Mapbox 토큰 URL 제한** — `https://ru-vibe.vercel.app` + `http://localhost:3000`. 확인은 **타일 주소**로 해야 한다: `/styles/v1/mapbox/dark-v11`(스타일 JSON)은 제한이 안 걸려 아무 Referer로도 200이고, `/styles/v1/mapbox/dark-v11/tiles/256/12/1204/1541`이 403 `{"message":"Forbidden"}`을 낸다. 엉뚱한 주소로 재고 "제한이 안 걸렸다"고 오판했던 곳
-    - Vercel **미리보기 배포**(`ru-vibe-<해시>.vercel.app`)는 목록에 없어서 지도가 새까맣게 나온다
-  - [x] 배포 URL을 README 최상단에 (`https://ru-vibe.vercel.app`) + 로드맵 갱신(6시 리셋을 아직 "Edge Function"이라 적어놨었음)
-  - [x] Vercel 연결 + 환경변수 3개. **Supabase는 아무 설정도 안 바꿔도 됐다** — OTP엔 "돌아올 주소"가 없어서. 매직 링크였다면 Redirect URLs에 새 도메인을 등록해야 했다
-
-- [ ] 12. **이해 점검 문답** (2026-08-04 작업자 요청). 본인 표현: *"이 프로젝트를 완벽하게 이해하지 못하고 있는 것 같다"*. 배포·데모·레쥬메까지 끝낸 뒤 진행 — 실물이 떠 있어야 규칙 5(보게 하라)를 쓸 수 있다. 목표 수준: **인턴 면접에서 "이 프로젝트 설명해보세요"에 막힘없이 답하는 것**. 다룰 주제:
+- [x] 1~9. 스캐폴딩·manifest / Supabase 연결 / OTP 인증 / `posts`+RLS(3장/일) / Capture / Storage 업로드 / Map+핀 / Realtime / 06:00 리셋(pg_cron+pg_net)
+- [x] 10. PWA 마무리 — 아이콘, sw, 설치 안내, 인앱 브라우저 배너, `/map`↔`/capture` 이동, 로그인 상태 표시. 자세한 근거는 위 **결정 사항 > PWA**
+  - 공용 탭바를 안 만든 이유: 화면이 2개뿐이라 탭바는 "버튼 1개"를 비싸게 만든 것이고 `/map`이 `h-dvh`라 지도를 덮는다. 3번째 화면이 생기면 그때
+- [x] 11. 배포 — `https://ru-vibe.vercel.app` (Vercel+GitHub 연결, 푸시하면 자동 재배포)
+  - **Supabase는 아무 설정도 안 바꿔도 됐다** — OTP엔 "돌아올 주소"가 없어서. 매직 링크였다면 Redirect URLs 등록이 필요했다
+  - service_role 키 rotate 완료(유출 건 해소). Mapbox URL 제한 완료. README 최상단에 배포 URL
+  - [ ] **폰 실기기 QA 남음**: 촬영→Post→핀, 홈 화면 설치, `/map` 인앱 배너, **새 폴라로이드 룩**
+  - [ ] 2026-08-05 아침: 06:00 리셋이 **새 키 + `apikey` 헤더**로 실제로 도는지 `net._http_response`로 확인 (그 조합의 첫 실전)
+- [ ] 13. **히트맵** — "핀이 몰린 곳 = 핫플"이 지금 화면에 **전혀 표현이 안 된다**(핀이 전부 똑같은 📍). 이 앱의 주장 자체라 남은 것 중 가치가 제일 크고, **데모 스크린샷 문제도 같이 푼다**(핀 5개가 한곳에 몰려도 히트맵이 없으면 "핫플"로 안 읽힘)
+  - 방법: Mapbox 네이티브. GeoJSON source에 `cluster: true`(개수별 색·크기) 또는 `type: "heatmap"` 레이어. 직접 거리 계산해서 묶는 건 재발명
+  - 대가: 지금 `addMarker()`의 **DOM 마커를 source+layer로 갈아야 한다.** 클릭→사진 팝업이 마커 객체가 아니라 레이어 클릭 핸들러로 바뀌고, Realtime도 "마커 추가"가 아니라 "source 데이터 갱신"이 된다. 태스크 7·8을 다시 만지는 셈
+- [ ] 14. **인스타 공유** — `/capture` 게시 후 `navigator.share({ files: [사진] })`. iOS 공유 시트가 뜨고 거기 인스타가 들어 있다. `instagram-stories://` 스킴 직접 호출은 앱 설치 여부·펌보드까지 얽혀서 안 함. 10줄짜리라 13번 곁다리로 붙이면 됨
+- [ ] 데모 스크린샷 (13번 뒤에) → 레쥬메 업데이트
+- [ ] 12. **이해 점검 문답** — 맨 마지막. 본인 표현: *"이 프로젝트를 완벽하게 이해하지 못하고 있는 것 같다"*. 목표: **면접에서 "이 프로젝트 설명해보세요"에 막힘없이 답하기**. 주제:
   1. 요청 1회의 전 경로 — 주소창 → `proxy.ts` → 페이지 → Supabase, 각 단계에서 누가 뭘 결정하나
   2. 왜 방어가 RLS에 있어야 하나 — ①이 ②를 건너뛴다는 것의 의미
-  3. 서버 컴포넌트 / 클라이언트 컴포넌트 / hydration — `"use client"`가 실제로 바꾸는 것
-  4. React state·`useEffect`·의존성 배열 — 언제 다시 도나 (탭 두 개 실험, UA 실험이 여기 속함)
-  5. 저장 장소 3개: state / 쿠키 / localStorage — **2026-08-04 완료**. `@supabase/ssr`이 세션을 localStorage 대신 쿠키에 넣는 이유까지 도달
+  3. 서버/클라이언트 컴포넌트와 hydration — `"use client"`가 실제로 바꾸는 것
+  4. state·`useEffect`·의존성 배열 — 언제 다시 도나
+  5. ~~저장 장소 3개~~ ✅ 2026-08-04 완료
   6. RLS 정책문 읽기 — `auth.uid()`, `using` vs `with check`
   7. Realtime — publication(공급)과 subscription(등록)이 별개 계층
   8. Storage — public/private, 경로 정책, orphan 파일
-  9. pg_cron + pg_net의 비동기 (작업자 약점으로 기록됨)
+  9. pg_cron + pg_net의 비동기 (약점으로 기록됨)
   10. 빌드 타임 치환(`NEXT_PUBLIC_`)과 배포 환경변수
-  11. 각 결정의 트레이드오프를 **말로** 설명하기 — README의 6개 결정이 그대로 면접 답변
+  11. **각 결정의 트레이드오프를 말로 설명하기** — README의 결정 6개가 그대로 면접 답변. 나머지 10개는 이걸 받치는 재료
 
 ## 포트폴리오
 
