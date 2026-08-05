@@ -103,8 +103,10 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 - [ ] 11. 배포(Vercel) + 최종 QA
   - 환경변수 3개 등록 (`NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY` / `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`)
   - **service_role 키 rotate** — 태스크 9 중 채팅에 노출됨. rotate 후 `vault.create_secret`으로 다시 넣어야 `reset_daily()`가 계속 돈다
-  - 도메인 확정 후 **Mapbox 토큰에 URL 제한** (지금 무제한). 개발 중엔 걸면 안 됨 — `cloudflared` 랜덤 도메인이라 지도가 죽는다
-  - 배포 URL을 README 최상단에 — 인턴 지원용으로 스크린샷보다 이게 큼
+  - [x] **Mapbox 토큰 URL 제한** — `https://ru-vibe.vercel.app` + `http://localhost:3000`. 확인은 **타일 주소**로 해야 한다: `/styles/v1/mapbox/dark-v11`(스타일 JSON)은 제한이 안 걸려 아무 Referer로도 200이고, `/styles/v1/mapbox/dark-v11/tiles/256/12/1204/1541`이 403 `{"message":"Forbidden"}`을 낸다. 엉뚱한 주소로 재고 "제한이 안 걸렸다"고 오판했던 곳
+    - Vercel **미리보기 배포**(`ru-vibe-<해시>.vercel.app`)는 목록에 없어서 지도가 새까맣게 나온다
+  - [x] 배포 URL을 README 최상단에 (`https://ru-vibe.vercel.app`) + 로드맵 갱신(6시 리셋을 아직 "Edge Function"이라 적어놨었음)
+  - [x] Vercel 연결 + 환경변수 3개. **Supabase는 아무 설정도 안 바꿔도 됐다** — OTP엔 "돌아올 주소"가 없어서. 매직 링크였다면 Redirect URLs에 새 도메인을 등록해야 했다
 
 - [ ] 12. **이해 점검 문답** (2026-08-04 작업자 요청). 본인 표현: *"이 프로젝트를 완벽하게 이해하지 못하고 있는 것 같다"*. 배포·데모·레쥬메까지 끝낸 뒤 진행 — 실물이 떠 있어야 규칙 5(보게 하라)를 쓸 수 있다. 목표 수준: **인턴 면접에서 "이 프로젝트 설명해보세요"에 막힘없이 답하는 것**. 다룰 주제:
   1. 요청 1회의 전 경로 — 주소창 → `proxy.ts` → 페이지 → Supabase, 각 단계에서 누가 뭘 결정하나
