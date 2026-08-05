@@ -42,6 +42,10 @@ const CAMPUS_ZOOM = 12.5;
 // 둘이 분리돼 있어서 같은 데이터를 열지도로도, 점으로도 그릴 수 있다.
 const HEAT_SOURCE = "posts-heat";
 
+// 게시물이 이만큼 쌓이기 전엔 열지도를 숨긴다.
+// 1장짜리 글로우는 "핫플"이 아니라 그냥 얼룩이다 — 몰렸다는 말을 하려면 몰려 있어야 한다.
+const MIN_FOR_HEAT = 5;
+
 // 게시물 → GeoJSON 점 하나. 지도 세계의 공용 데이터 형식이고 좌표는 [경도, 위도] 순이다.
 //
 // 타입을 직접 적은 이유: 정식 GeoJSON 타입 정의는 @types/geojson이라는 별도 패키지에 있는데,
@@ -216,8 +220,19 @@ export default function MapPage() {
     // 지도에 넘긴 점 목록을 최신으로 갈아끼운다.
     // 소스가 아직 없으면(스타일 로딩 전) 조용히 넘긴다 — load에서 다시 부른다.
     const syncHeat = () => {
-      const src = mapRef.current?.getSource(HEAT_SOURCE) as mapboxgl.GeoJSONSource | undefined;
-      src?.setData({ type: "FeatureCollection", features: featuresRef.current });
+      const map = mapRef.current;
+      const src = map?.getSource(HEAT_SOURCE) as mapboxgl.GeoJSONSource | undefined;
+      if (!map || !src) return;
+      src.setData({ type: "FeatureCollection", features: featuresRef.current });
+
+      // layout 속성 visibility = 레이어를 통째로 켜고 끈다.
+      // 데이터를 비우는 방법도 있지만, 그러면 게시물이 5개째 올라온 순간 다시 채워야 해서
+      // "지금 몇 개인가"를 두 군데서 관리하게 된다. 데이터는 늘 진짜를 담고, 보일지만 여기서 정한다.
+      map.setLayoutProperty(
+        HEAT_SOURCE,
+        "visibility",
+        featuresRef.current.length >= MIN_FOR_HEAT ? "visible" : "none",
+      );
     };
 
     // "load" = 지도 스타일(도로·건물 정의)을 다 받아온 시점.
