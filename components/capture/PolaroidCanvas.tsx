@@ -20,9 +20,13 @@ const BORDER_BOTTOM = 25 / 79; // 아래 여백 — 여기가 넓은 게 폴라�
 // 노란 기를 뺀 오프화이트 — 레퍼런스 사진의 세피아 느낌은 피하기로 함.
 const PAPER = "#eeece8";
 
-// 사진 한 변의 픽셀 수. 종이 전체는 이것의 약 1.37배(=2050)가 된다.
+// 사진 한 변의 픽셀 수. 종이 전체는 이것의 약 1.37배가 된다.
 // iOS Safari는 캔버스가 너무 크면 에러도 없이 빈 이미지를 내놓는다(48MP 아이폰 사진이 여기 걸림).
-const PHOTO_PX = 1500;
+//
+// 1500 → 1150으로 내렸다. 화질을 깎는 게 아니라 **그레인을 굵게 만드는 조정**이다 —
+// 노이즈 타일은 픽셀 단위로 고정이라, 사진이 작아질수록 입자가 상대적으로 커 보인다.
+// 실제 필름도 감도가 높을수록(=어두운 데서 찍을수록) 입자가 굵고 화질이 낮다.
+const PHOTO_PX = 1150;
 
 // 사진에 찍을 날짜/시간 문자열. 예: "2026.08.04  21:04"
 // toLocaleString()은 폰 언어 설정에 따라 결과가 달라져서 직접 조립한다.
@@ -37,22 +41,57 @@ function timestamp(d: Date) {
 //
 // 왜 타일인가: 사진 전체(1500×1500 = 225만 픽셀)에 픽셀 하나씩 난수를 넣으면 느리다.
 // 작은 정사각형 하나만 만들어 바둑판처럼 반복해 깔면 눈으로는 구분이 안 되면서 훨씬 싸다.
-function grainPattern(ctx: CanvasRenderingContext2D, size = 96) {
-  const tile = document.createElement("canvas");
-  tile.width = tile.height = size;
-  const tctx = tile.getContext("2d")!;
+// block = 입자 하나의 크기(px). 1이면 픽셀 단위 미세 노이즈, 3이면 3×3 덩어리.
+// 실제 필름 그레인은 크기가 제각각이라, 아래에서 굵은 층과 미세한 층을 겹쳐 깐다.
+function grainPattern(ctx: CanvasRenderingContext2D, size = 96, block = 1, spread = 110) {
+  // 먼저 작게 만든 뒤 확대해서 붙이면 입자가 덩어리로 커진다.
+  const small = document.createElement("canvas");
+  small.width = small.height = Math.round(size / block);
+  const sctx = small.getContext("2d")!;
 
   // ImageData = 픽셀 배열 그 자체. [R,G,B,A, R,G,B,A, ...] 순으로 한 줄로 늘어서 있다.
-  const img = tctx.createImageData(size, size);
+  const img = sctx.createImageData(small.width, small.height);
   for (let i = 0; i < img.data.length; i += 4) {
     // 중간 회색(128)을 기준으로 위아래로 흔든다. 아래에서 overlay 모드로 얹을 때
     // 128은 "변화 없음"이라, 밝은 점은 밝게 어두운 점은 어둡게만 작용한다.
-    const v = 128 + (Math.random() - 0.5) * 110;
+    const v = 128 + (Math.random() - 0.5) * spread;
     img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
     img.data[i + 3] = 255; // 불투명
   }
-  tctx.putImageData(img, 0, 0);
+  sctx.putImageData(img, 0, 0);
+
+  if (block === 1) return ctx.createPattern(small, "repeat")!;
+
+  const tile = document.createElement("canvas");
+  tile.width = tile.height = size;
+  const tctx = tile.getContext("2d")!;
+  // 확대할 때 보간을 끄면 픽셀이 뭉개지지 않고 각진 덩어리로 커진다.
+  tctx.imageSmoothingEnabled = false;
+  tctx.drawImage(small, 0, 0, size, size);
   return ctx.createPattern(tile, "repeat")!;
+}
+
+// 사각형 안쪽 가장자리에 그림자를 넣는다.
+// 실물 폴라로이드는 사진이 종이보다 살짝 안으로 들어가 있어서 테두리에 그늘이 진다.
+// 이게 없으면 사진이 종이에 붙인 스티커처럼 떠 보인다.
+function innerShadow(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  const d = s * 0.02; // 그늘이 스며드는 깊이
+  const dark = "rgba(0,0,0,0.30)";
+  const clear = "rgba(0,0,0,0)";
+  // [그라디언트 시작점, 끝점, 칠할 사각형] 을 네 변에 대해 한 번씩
+  const edges: [number, number, number, number, number, number, number, number][] = [
+    [x, y, x, y + d, x, y, s, d], // 위
+    [x, y + s, x, y + s - d, x, y + s - d, s, d], // 아래
+    [x, y, x + d, y, x, y, d, s], // 왼쪽
+    [x + s, y, x + s - d, y, x + s - d, y, d, s], // 오른쪽
+  ];
+  for (const [gx0, gy0, gx1, gy1, rx, ry, rw, rh] of edges) {
+    const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+    g.addColorStop(0, dark);
+    g.addColorStop(1, clear);
+    ctx.fillStyle = g;
+    ctx.fillRect(rx, ry, rw, rh);
+  }
 }
 
 // 사진 영역에만 필름 색감을 입힌다. (x, y, s) = 사진의 좌상단과 한 변.
@@ -71,21 +110,21 @@ function gradeFilm(ctx: CanvasRenderingContext2D, x: number, y: number, s: numbe
   //    multiply = 곱하기. 흰색(255)을 곱하면 그대로, 어두운 값을 곱하면 그만큼 깎인다.
   //    파랑이 높고 빨강/초록이 낮은 색을 곱하면 R·G만 살짝 깎여서 노란기가 줄어든다.
   ctx.globalCompositeOperation = "multiply";
-  ctx.fillStyle = "rgba(228,236,255,0.22)";
+  ctx.fillStyle = "rgba(222,233,255,0.30)";
   ctx.fillRect(x, y, s, s);
 
   // ② 검정을 들어올린다(=물 빠진 느낌). 필름 사진이 디지털과 다르게 보이는 가장 큰 이유다.
   //    lighten = 채널별로 더 밝은 쪽을 택한다. 어두운 청록을 깔면 "이보다 어두운 픽셀은 없다"가 되어
   //    새까만 부분이 사라지고 그림자가 차갑게 뜬다. 밝은 부분은 전혀 안 건드려진다.
   ctx.globalCompositeOperation = "lighten";
-  ctx.fillStyle = "rgb(32,38,42)";
+  ctx.fillStyle = "rgb(46,52,58)";
   ctx.fillRect(x, y, s, s);
 
   // ③ 하이라이트에 연분홍. screen = 밝게 섞기(lighten과 달리 전체가 부드럽게 올라간다).
   //    ②가 그림자를 차갑게, ③이 밝은 쪽을 따뜻하게 만들어 색이 갈린다(split tone).
   //    이 어긋남이 "필름 같다"는 인상의 정체다.
   ctx.globalCompositeOperation = "screen";
-  ctx.fillStyle = "rgba(255,186,190,0.10)";
+  ctx.fillStyle = "rgba(255,176,182,0.18)";
   ctx.fillRect(x, y, s, s);
 
   // ④ 비네팅 — 가장자리를 어둡게. 렌즈가 구석까지 빛을 못 보내서 생기는 현상이라
@@ -95,15 +134,20 @@ function gradeFilm(ctx: CanvasRenderingContext2D, x: number, y: number, s: numbe
   const cy = y + s / 2;
   const vignette = ctx.createRadialGradient(cx, cy, s * 0.34, cx, cy, s * 0.78);
   vignette.addColorStop(0, "rgba(20,18,24,0)");
-  vignette.addColorStop(1, "rgba(20,18,24,0.26)");
+  vignette.addColorStop(1, "rgba(20,18,24,0.34)");
   ctx.fillStyle = vignette;
   ctx.fillRect(x, y, s, s);
 
   // ⑤ 필름 그레인. overlay = 밝은 곳은 더 밝게, 어두운 곳은 더 어둡게 (대비를 살린 합성).
   //    중간 회색은 아무 영향이 없어서 노이즈 타일과 짝이 맞는다.
   ctx.globalCompositeOperation = "overlay";
-  ctx.globalAlpha = 0.14;
-  ctx.fillStyle = grainPattern(ctx);
+  // 굵은 층 — 눈에 "필름이다"라고 말하는 건 이쪽이다.
+  ctx.globalAlpha = 0.26;
+  ctx.fillStyle = grainPattern(ctx, 96, 3, 150);
+  ctx.fillRect(x, y, s, s);
+  // 미세한 층 — 굵은 층만 있으면 격자무늬처럼 규칙적으로 보인다. 이게 그걸 흐트러뜨린다.
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = grainPattern(ctx, 96, 1, 120);
   ctx.fillRect(x, y, s, s);
 
   ctx.restore(); // clip·합성모드·alpha를 전부 원래대로
@@ -159,13 +203,21 @@ export default function PolaroidCanvas({
       const ctx = canvas.getContext("2d")!;
 
       // ① 종이를 먼저 칠한다. 캔버스는 기본이 투명이라 안 칠하면 여백이 뚫려 보인다.
-      ctx.fillStyle = PAPER;
+      //    단색으로 두면 인쇄물처럼 평평해서, 위아래로 아주 옅은 색차를 준다.
+      //    실물 종이는 스캔하면 반드시 이런 얼룩이 있고, 그 불균일함이 "실물감"이다.
+      const paper = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      paper.addColorStop(0, "#f2f0ec");
+      paper.addColorStop(0.55, PAPER);
+      paper.addColorStop(1, "#e6e3dd");
+      ctx.fillStyle = paper;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // ② 사진을 얹는다. ctx.filter는 그리는 순간 적용되는 보정 —
       //    채도를 낮추고(선명한 디지털 느낌 제거) 대비를 낮추고 살짝 밝게 해서
       //    아래 gradeFilm이 색을 입힐 여지를 만든다.
-      ctx.filter = "saturate(0.82) contrast(0.88) brightness(1.06)";
+      // blur는 화질을 깎는 게 아니라 필름 특유의 "칼같지 않은" 느낌을 만든다.
+      // 디지털 사진의 과하게 선명한 가장자리가 가장 티 나는 부분이다.
+      ctx.filter = "saturate(0.68) contrast(0.80) brightness(1.10) blur(0.6px)";
       ctx.drawImage(bitmap, sx, sy, side, side, px, py, s, s);
       ctx.filter = "none"; // 안 되돌리면 아래 글자에도 보정이 걸린다
       bitmap.close(); // 디코딩된 픽셀은 메모리를 많이 먹는다. 다 썼으니 즉시 반납.
@@ -173,13 +225,22 @@ export default function PolaroidCanvas({
       // ③ 필름 색감 입히기
       gradeFilm(ctx, px, py, s);
 
-      // ④ 사진과 종이 사이 경계선. 실물은 사진이 종이보다 살짝 안으로 들어가 있어
-      //    가장자리에 얇은 그림자가 생긴다. 이게 없으면 사진이 종이에 뜬 스티커처럼 보인다.
-      ctx.strokeStyle = "rgba(0,0,0,0.14)";
+      // ④ 사진이 종이에 파묻힌 느낌 — 안쪽 그늘 + 얇은 경계선.
+      innerShadow(ctx, px, py, s);
+      ctx.strokeStyle = "rgba(0,0,0,0.18)";
       ctx.lineWidth = Math.max(1, s * 0.002);
       ctx.strokeRect(px, py, s, s);
 
-      // ⑤ 날짜는 사진 위가 아니라 아래 여백에 적는다.
+      // ⑤ 종이 질감. 사진에만 그레인이 있고 종이가 매끈하면 둘이 따로 논다.
+      //    아주 옅게 깔아 전체를 한 장의 물건으로 묶는다.
+      ctx.save();
+      ctx.globalCompositeOperation = "overlay";
+      ctx.globalAlpha = 0.09;
+      ctx.fillStyle = grainPattern(ctx, 96, 2, 90);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+
+      // ⑥ 날짜는 사진 위가 아니라 아래 여백에 적는다.
       //    사진 위에 얹으면 배경이 밝은지 어두운지에 따라 안 보여서 테두리를 둘러야 했는데,
       //    종이 위에 적으면 배경색을 우리가 아니까 그냥 쓰면 된다. 실물 폴라로이드도 여기 적는다.
       const text = timestamp(new Date());

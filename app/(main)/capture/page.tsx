@@ -6,7 +6,7 @@
 // useState = "화면에 반영돼야 하는 값"을 담는 상자를 만드는 React 함수.
 // 그냥 let 변수에 담으면 값은 바뀌지만 React가 모르니까 화면이 안 바뀐다.
 // useRef = "화면을 다시 그려도 유지되지만, 바뀌어도 화면을 다시 그리진 않는 상자".
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 // 페이지 이동용 <a>. /map으로 돌아가는 길이 없으면 유저는 주소창을 직접 쳐야 한다.
 import Link from "next/link";
 import PolaroidCanvas from "@/components/capture/PolaroidCanvas";
@@ -22,6 +22,16 @@ export default function CapturePage() {
   // 사진을 한 장이라도 찍었나. 캔버스는 useRef라 바뀌어도 화면이 안 그려지므로,
   // "찍은 뒤에만 보이는 UI"를 위해 화면에 반영되는 값이 따로 필요하다.
   const [shot, setShot] = useState(false);
+
+  // 이 브라우저가 공유 시트를 열 수 있나.
+  //
+  // 처음엔 navigator.canShare({ files: [빈 File] })로 물어봤는데 iOS가 false를 돌려줬다.
+  // 0바이트짜리 가짜 파일을 "공유할 수 없는 것"으로 판단한 것 — 우리는 "지원하니?"를
+  // 물어본 셈이었지만 브라우저는 그 파일을 진짜로 검사했다. 그래서 버튼이 안 떴다.
+  // 실물이 있어야 답할 수 있는 질문이라, 여기선 기능의 존재만 보고 나머지는 눌렀을 때 판단한다.
+  // (useEffect 안에서 보는 이유: 서버에는 navigator가 없어 하이드레이션이 어긋난다)
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => setCanShare(typeof navigator.share === "function"), []);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoError, setGeoError] = useState("");
 
@@ -165,18 +175,11 @@ export default function CapturePage() {
     }
   }
 
-  // 이 브라우저가 파일 공유를 할 수 있나. 데스크톱 Chrome 등에선 안 되는데,
-  // 눌러도 아무 일 없는 버튼을 보여주느니 아예 안 그리는 게 낫다.
-  // canShare까지 확인하는 이유: share는 있는데 파일은 못 보내는 브라우저가 있다.
-  const canShare =
-    typeof navigator !== "undefined" &&
-    Boolean(navigator.canShare?.({ files: [new File([], "x.jpg", { type: "image/jpeg" })] }));
-
   // 좌표는 세 가지 상태를 가진다: 아직 기다리는 중 / 실패 / 성공.
   // JSX 안에서 if를 쓸 수 없어서, 화면에 넣을 문구를 미리 여기서 정해둔다.
-  let locationText = "· locating…";
-  if (coords) locationText = `· ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
-  else if (geoError) locationText = `· location unavailable — ${geoError}`;
+  let locationText = "📍 locating…";
+  if (coords) locationText = `📍 ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
+  else if (geoError) locationText = `📍 location unavailable — ${geoError}`;
 
   // 게시 가능한 조건: 좌표가 잡혔고, 업로드 중이 아니고, 아직 안 올렸을 것.
   // lat/lng가 DB에서 not null이라 좌표 없이는 INSERT 자체가 불가능하다.
