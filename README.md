@@ -1,10 +1,12 @@
 # RU-Vibe — The Scarlet Drop
 
+**Live: [ru-vibe.vercel.app](https://ru-vibe.vercel.app)** — the map is open to everyone; posting needs a Rutgers address.
+
 A real-time party heatmap for Rutgers, restricted to `@scarletmail.rutgers.edu`.
 
 Students post a live photo; it drops as a pin on a shared campus map. **Where the pins pile up is where it's happening right now.** Everything is wiped at 6 AM daily, so the map only ever shows tonight.
 
-> **Status:** core loop complete (auth → capture → upload → map → realtime). Deployment and PWA polish in progress. See [Roadmap](#roadmap).
+> **Status:** deployed and working end to end (auth → capture → upload → map → realtime → 6 AM reset), installable as a PWA. See [Roadmap](#roadmap) for what's deliberately missing.
 
 ---
 
@@ -123,8 +125,8 @@ cloudflared tunnel --url http://localhost:3000
 - [x] Upload to Storage + `posts` insert, server-enforced 3/day limit
 - [x] Map with existing pins and photo popups
 - [x] Realtime pin drops
-- [ ] Nightly 6 AM reset (scheduled Edge Function + Storage cleanup)
-- [ ] PWA install prompt, icons, in-app-browser warning banner
-- [ ] Deploy
+- [x] Nightly 6 AM reset — `pg_cron` + `pg_net` inside Postgres, archiving rather than deleting
+- [x] PWA: icons, service worker, iOS install hint, in-app-browser warning
+- [x] Deploy
 
-**Known gaps:** no navigation between `/map` and `/capture` yet; the Mapbox token is unrestricted until a production domain exists; login emails land in spam pending SPF/DKIM on a real domain.
+**Known gaps:** login emails land in spam pending SPF/DKIM on a real domain; the archive is write-only (nothing reads it back yet); the signed-in state on the map is read once per page load, so a second tab can show a stale button until you act on it.
