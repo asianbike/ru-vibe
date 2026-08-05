@@ -40,7 +40,7 @@ Rutgers `@scarletmail.rutgers.edu` 전용 실시간 파티 히트맵 PWA. `/map`
 
 **Mapbox 토큰: `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`** (public `pk.`, 시크릿 스코프 0개). `NEXT_PUBLIC_`은 "공개해도 된다"가 아니라 **빌드 시 값을 브라우저 JS에 글자 그대로 박으라는 명령** — 스코프를 하나라도 켜면 그 권한이 전 세계에 뿌려진다. 타일 렌더링은 스코프 없이 되는 기본 권한.
 **좌표 순서: Mapbox는 `[lng, lat]`, `posts`는 `lat`/`lng`.** 뒤집어도 에러 없이 지도 반대편에 찍힌다.
-커스텀 element 마커엔 **`anchor: "bottom"` 필수** (기본값은 요소 한가운데를 좌표에 맞추는데 📍는 아래 끝이 가리키는 그림). 핀은 무드별로 나누지 않고 **전부 📍 하나** — `posts.mood`는 그래서 죽은 컬럼.
+커스텀 element 마커엔 **`anchor: "bottom"` 필수** (기본값은 요소 한가운데를 좌표에 맞추는데 📍는 아래 끝이 가리키는 그림). 핀은 무드별로 나누지 않고 **전부 📍 하나**. `posts.mood`는 그래서 죽어 있다가 **2026-08-04에 삭제**(`20260804010000_drop_mood.sql`) — `posts`와 `posts_archive` 양쪽에서 동시에. `reset_daily()`의 `insert into posts_archive select *`가 **이름이 아니라 순서**로 짝을 맞춰서 한쪽만 지우면 06:00 리셋이 통째로 깨진다.
 
 **카메라: 네이티브 카메라 앱** (`<input type="file" accept="image/*" capture="environment">`). `getUserMedia` 커스텀 뷰파인더에서 갈아탐 — 화질이 훨씬 좋고 iOS 삽질이 사라짐. 대신 라이브 뷰파인더 위에 UI를 못 얹음.
 
@@ -140,6 +140,5 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 
 ## 나중에
 
-- **사진 aesthetic 고도화** — 룩 결정 코드는 `PolaroidCanvas`의 `drawImage` 이후 10줄에 전부 모여 있다. 후보: 폴라로이드 프레임, 비네팅, 필름 그레인, `ctx.filter` 색보정
-- `posts.mood`가 죽은 컬럼(핀을 📍로 통일하면서). 지울 땐 `posts_archive`도 같이 — `insert into posts_archive select *`가 컬럼 순서에 의존해서 한쪽만 지우면 06:00 리셋이 깨진다
+- ~~사진 aesthetic 고도화~~ → **2026-08-04 완료.** `PolaroidCanvas`가 실제 Polaroid 600 치수(종이 88×108mm / 사진 79×79mm)로 정사각형 카드를 그린다. 색은 `ctx.filter`(채도·대비 낮춤) + 합성모드 4단계: `multiply` 찬 색으로 **황색 빼기** → `lighten` 어두운 청록으로 **검정 들어올리기(물 빠진 느낌)** → `screen` 연분홍으로 하이라이트 → 비네팅 → `overlay` 그레인(96px 노이즈 타일 반복, 픽셀 루프보다 훨씬 쌈). 날짜는 사진 위가 아니라 **아래 여백**에 — 배경색을 우리가 아니까 테두리 트릭이 필요 없다
 - **아카이브를 유저에게 보여주는 기능**은 태스크 11 이후. `archive`가 private이라 signed URL이 필요하고 `posts_archive`엔 grant가 없어 조회 경로부터 새로 만들어야 함

@@ -14,16 +14,14 @@ import PolaroidCanvas from "@/components/capture/PolaroidCanvas";
 import { createClient } from "@/lib/supabase/client";
 import InAppBrowserBanner from "@/components/InAppBrowserBanner";
 
-// 지도 핀 아이콘으로 쓸 이모지 후보들.
-// 유저가 직접 고르게 하지 않고 랜덤으로 뽑는다 — 고민하게 만들면 게시가 느려진다.
-const MOODS = ["🔥", "🎉", "🍻", "🎶", "😎", "💃"];
-
 
 export default function CapturePage() {
   // useState(초기값)은 [현재값, 값을바꾸는함수] 두 개를 순서대로 돌려준다.
   // set...을 호출하면 React가 "값이 바뀌었다"는 걸 알고 이 함수를 처음부터 다시 실행해
   // 아래 return의 화면을 새로 그린다. 그래서 화면과 값이 항상 같이 움직인다.
-  const [mood, setMood] = useState("");
+  // 사진을 한 장이라도 찍었나. 캔버스는 useRef라 바뀌어도 화면이 안 그려지므로,
+  // "찍은 뒤에만 보이는 UI"를 위해 화면에 반영되는 값이 따로 필요하다.
+  const [shot, setShot] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoError, setGeoError] = useState("");
 
@@ -44,9 +42,7 @@ export default function CapturePage() {
   // (재촬영하면 또 불리니까 무드도 좌표도 새로 뽑힌다)
   function handleCapture(canvas: HTMLCanvasElement) {
     canvasRef.current = canvas;
-
-    // Math.random()은 0 이상 1 미만의 소수. 개수를 곱하고 소수점을 버리면 0~5 중 하나.
-    setMood(MOODS[Math.floor(Math.random() * MOODS.length)]);
+    setShot(true);
 
     // 이전 사진의 좌표/에러/게시상태가 남아있으면 안 되니 비운다.
     setCoords(null);
@@ -119,7 +115,6 @@ export default function CapturePage() {
         photo_url: publicUrl,
         lat: coords.lat,
         lng: coords.lng,
-        mood,
       });
       if (insertError) throw insertError;
 
@@ -148,9 +143,9 @@ export default function CapturePage() {
   if (coords) locationText = `· ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
   else if (geoError) locationText = `· location unavailable — ${geoError}`;
 
-  // 게시 가능한 조건: 사진을 찍었고, 좌표가 잡혔고, 업로드 중이 아니고, 아직 안 올렸을 것.
+  // 게시 가능한 조건: 좌표가 잡혔고, 업로드 중이 아니고, 아직 안 올렸을 것.
   // lat/lng가 DB에서 not null이라 좌표 없이는 INSERT 자체가 불가능하다.
-  const canPost = Boolean(mood && coords) && !posting && !posted;
+  const canPost = Boolean(coords) && !posting && !posted;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4">
@@ -178,12 +173,10 @@ export default function CapturePage() {
         {/* onCapture로 우리 함수를 넘겨준다 = "사진 다 그렸으면 이걸 불러라" */}
         <PolaroidCanvas onCapture={handleCapture} />
 
-        {/* mood가 빈 문자열이면(=아직 안 찍었으면) && 뒤쪽은 아예 화면에 안 나온다 */}
-        {mood && (
+        {/* 아직 안 찍었으면 && 뒤쪽은 아예 화면에 안 나온다 */}
+        {shot && (
           <>
-            <p className="mt-3 text-sm">
-              <span className="text-lg">{mood}</span> {locationText}
-            </p>
+            <p className="mt-3 text-sm">{locationText}</p>
 
             {/* disabled면 브라우저가 클릭 자체를 무시한다. 눌리지 않는다는 걸
                 눈으로도 알 수 있게 흐리게(opacity) 처리한다. */}
