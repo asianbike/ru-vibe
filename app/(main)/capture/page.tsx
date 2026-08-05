@@ -137,6 +137,41 @@ export default function CapturePage() {
     }
   }
 
+  // 게시한 폴라로이드를 인스타 등으로 내보낸다.
+  //
+  // navigator.share = 브라우저가 **OS의 공유 시트**를 열어주는 기능. 우리가 인스타를
+  // 직접 아는 게 아니라 "이 파일 좀 어디론가 보내줘"라고 OS에 맡기는 것이라,
+  // 유저 폰에 깔린 앱이 뭐든 거기 다 뜬다(인스타·메시지·에어드랍·사진 저장…).
+  //
+  // 인스타를 콕 집어 여는 방법(instagram-stories:// 스킴)도 있는데, 앱이 깔려 있는지
+  // 확인할 방법이 없어서 안 깔린 유저에겐 아무 일도 안 일어난다. 공유 시트는 그 문제가 없다.
+  async function handleShare() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.9),
+    );
+    if (!blob) return;
+
+    // File은 Blob에 "파일 이름"과 "종류"를 붙인 것. 공유 시트가 미리보기를 그리려면 필요하다.
+    const file = new File([blob], "ru-vibe.jpg", { type: "image/jpeg" });
+
+    try {
+      await navigator.share({ files: [file] });
+    } catch {
+      // 유저가 공유 시트를 그냥 닫아도 여기로 온다(거절도 예외로 전달된다).
+      // 실수도 에러도 아니므로 아무 말 안 한다.
+    }
+  }
+
+  // 이 브라우저가 파일 공유를 할 수 있나. 데스크톱 Chrome 등에선 안 되는데,
+  // 눌러도 아무 일 없는 버튼을 보여주느니 아예 안 그리는 게 낫다.
+  // canShare까지 확인하는 이유: share는 있는데 파일은 못 보내는 브라우저가 있다.
+  const canShare =
+    typeof navigator !== "undefined" &&
+    Boolean(navigator.canShare?.({ files: [new File([], "x.jpg", { type: "image/jpeg" })] }));
+
   // 좌표는 세 가지 상태를 가진다: 아직 기다리는 중 / 실패 / 성공.
   // JSX 안에서 if를 쓸 수 없어서, 화면에 넣을 문구를 미리 여기서 정해둔다.
   let locationText = "· locating…";
@@ -187,6 +222,15 @@ export default function CapturePage() {
             >
               {posting ? "Posting…" : posted ? "Posted" : "Post"}
             </button>
+            {/* 게시한 뒤에만 뜬다 — 올리기도 전에 공유부터 하면 지도에 안 남는다 */}
+            {posted && canShare && (
+              <button
+                onClick={handleShare}
+                className="mt-2 w-full rounded border border-zinc-400 px-3 py-2"
+              >
+                Share to Instagram &amp; more
+              </button>
+            )}
           </>
         )}
 
