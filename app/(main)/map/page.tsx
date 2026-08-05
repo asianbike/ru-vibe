@@ -30,6 +30,78 @@ import "mapbox-gl/dist/mapbox-gl.css";
 const CAMPUS_CENTER: [number, number] = [-74.448, 40.501];
 const CAMPUS_ZOOM = 12.5;
 
+// ── 열지도(heatmap) ────────────────────────────────────────────────
+// "핀이 몰린 곳 = 지금 핫플"이 이 앱의 주장인데, 핀이 전부 똑같은 📍라
+// 5개가 한 골목에 몰려도 그냥 핀 5개로만 보였다. 열지도가 그걸 그림으로 만든다.
+//
+// 왜 마커를 안 갈아엎었나: 열지도는 지도 **캔버스 안에** 그려지는 층(layer)이고,
+// 마커는 그 위에 얹힌 HTML 요소다. 층이 원래 다르므로 열지도를 아래에 깔아도
+// 기존 마커·팝업·실시간 코드는 한 줄도 안 바뀐다.
+//
+// source = 지도에 넘기는 데이터, layer = 그 데이터를 어떻게 그릴지.
+// 둘이 분리돼 있어서 같은 데이터를 열지도로도, 점으로도 그릴 수 있다.
+const HEAT_SOURCE = "posts-heat";
+
+// 게시물 → GeoJSON 점 하나. 지도 세계의 공용 데이터 형식이고 좌표는 [경도, 위도] 순이다.
+//
+// 타입을 직접 적은 이유: 정식 GeoJSON 타입 정의는 @types/geojson이라는 별도 패키지에 있는데,
+// 우리가 쓰는 모양은 이 6줄이 전부다. 6줄 때문에 의존성을 하나 더 들이지 않는다.
+type HeatFeature = {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: Record<string, never>;
+};
+
+function toFeature(post: Post): HeatFeature {
+  return {
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [post.lng, post.lat] },
+    properties: {},
+  };
+}
+
+function addHeatLayer(map: mapboxgl.Map) {
+  map.addSource(HEAT_SOURCE, {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
+  map.addLayer({
+    id: HEAT_SOURCE,
+    type: "heatmap",
+    source: HEAT_SOURCE,
+    paint: {
+      // interpolate = "이 값이 A일 땐 이만큼, B일 땐 이만큼, 사이는 부드럽게".
+      // 배율(zoom)에 따라 달라져야 하는 이유: 같은 반경 30px이 캠퍼스 전체 화면에선
+      // 건물 하나만큼이지만 거리 단위로 확대하면 손톱만큼이라 얼룩처럼 보인다.
+
+      // 진하기. 게시물이 하루 수십 장 규모라 기본값(1)이면 너무 흐리다.
+      "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 11, 2, 15, 4],
+
+      // 번지는 반경(px).
+      "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 11, 22, 15, 70],
+
+      // 밀도(0~1) → 색. 0은 반드시 완전 투명이어야 한다 —
+      // 안 그러면 게시물이 하나도 없는 캠퍼스 전체가 옅게 물든다.
+      "heatmap-color": [
+        "interpolate",
+        ["linear"],
+        ["heatmap-density"],
+        0, "rgba(0,0,0,0)",
+        0.2, "rgba(120,0,45,0.35)",
+        0.4, "rgba(204,0,51,0.55)",
+        0.6, "rgba(240,70,40,0.7)",
+        0.8, "rgba(255,150,40,0.85)",
+        1, "rgba(255,232,160,0.95)",
+      ],
+
+      // 확대하면 사라진다. 가까이서는 열지도가 개별 핀을 가릴 뿐이고,
+      // 그 배율에서 유저가 원하는 건 "어디가 뜨거운가"가 아니라 "이 사진 뭐야"다.
+      "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 13.5, 1, 15.5, 0],
+    },
+  });
+}
+
 // 게시물 하나를 지도 위의 마커 하나로 만들어 붙인다.
 // 태스크 8(실시간)에서 새 글이 도착했을 때도 이 함수만 다시 부르면 된다.
 function addMarker(map: mapboxgl.Map, post: Post) {
@@ -91,6 +163,10 @@ export default function MapPage() {
   // 로그인된 유저에게 "Sign out"으로 바뀐다. null인 동안은 아무것도 안 그려서 그걸 막는다.
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
+  // 열지도에 넘길 점들. useState가 아니라 useRef인 이유: 이 값이 바뀌어도
+  // React가 화면에 새로 그릴 건 없다(지도는 React 바깥에서 자기가 그린다).
+  const featuresRef = useRef<HeatFeature[]>([]);
+
   // 이 값은 빌드할 때 Next가 실제 토큰 문자열로 치환해 브라우저 JS에 박아 넣는다.
   // pk. 토큰은 원래 공개되는 값이라 괜찮다 — 진짜 방어선은 Mapbox 쪽의
   // 스코프 제한과 URL 제한이지, "아무도 모른다"가 아니다.
@@ -137,6 +213,21 @@ export default function MapPage() {
       zoom: CAMPUS_ZOOM,
     });
 
+    // 지도에 넘긴 점 목록을 최신으로 갈아끼운다.
+    // 소스가 아직 없으면(스타일 로딩 전) 조용히 넘긴다 — load에서 다시 부른다.
+    const syncHeat = () => {
+      const src = mapRef.current?.getSource(HEAT_SOURCE) as mapboxgl.GeoJSONSource | undefined;
+      src?.setData({ type: "FeatureCollection", features: featuresRef.current });
+    };
+
+    // "load" = 지도 스타일(도로·건물 정의)을 다 받아온 시점.
+    // 그 전에 addSource를 부르면 "스타일이 아직 없다"고 터진다. 지도를 만들자마자
+    // 부를 수 없는 이유가 이것 — 스타일은 네트워크로 받아오는 것이라 시간이 걸린다.
+    mapRef.current.on("load", () => {
+      addHeatLayer(mapRef.current!);
+      syncHeat(); // 로딩 중에 도착한 게시물이 있으면 여기서 반영된다
+    });
+
     // 조회와 실시간 구독이 같은 클라이언트를 써야 한다.
     // createClient()를 두 번 부르면 웹소켓 연결이 두 개 생기고,
     // 아래 cleanup의 removeChannel이 자기가 만들지 않은 채널을 못 닫는다.
@@ -159,6 +250,8 @@ export default function MapPage() {
         const map = mapRef.current;
         if (!map) return;
         data?.forEach((post) => addMarker(map, post));
+        featuresRef.current = (data ?? []).map(toFeature);
+        syncHeat();
       });
 
     // ── 여기부터 실시간 ──────────────────────────────────────────────
@@ -182,7 +275,11 @@ export default function MapPage() {
           console.log("realtime INSERT", payload.new);
           const map = mapRef.current;
           if (!map) return;
-          addMarker(map, payload.new as Post);
+          const post = payload.new as Post;
+          addMarker(map, post);
+          // 마커만 추가하고 여기서 멈추면 새 사진이 열지도에 반영되지 않는다.
+          featuresRef.current = [...featuresRef.current, toFeature(post)];
+          syncHeat();
         },
       )
       // subscribe()를 불러야 실제로 연결이 열린다. 안 부르면 위 설정만 해두고
