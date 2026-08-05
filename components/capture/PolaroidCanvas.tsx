@@ -2,12 +2,12 @@
 
 // useRef = "화면을 다시 그려도 값이 유지되지만, 바뀌어도 화면을 다시 그리진 않는 상자".
 // 여기선 실제 <canvas> DOM 요소를 붙잡아 두는 데 쓴다(그림을 그리려면 요소 자체가 필요).
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // canvas = 그림을 그릴 수 있는 HTML 요소. 픽셀 하나하나를 코드로 칠할 수 있다.
 // 여기서 하는 일: 진짜 폴라로이드 종이 사진(public/frame.jpg)을 깔고 → 그 흰 창 안에
 // 유저 사진을 정사각형으로 오려 넣고 → 35mm 필름 스캔처럼 색을 손보고 →
-// 오른쪽 아래에 필름 카메라 데이트백 각인을 찍는다. 결과물 한 장을 업로드한다.
+// 아래 흰 여백에 위치·날짜·시간을 적는다. 결과물 한 장을 업로드한다.
 
 // ── 종이 ────────────────────────────────────────────────────────────
 // 프레임을 코드로 그리지 않고 **실물 사진을 쓴다.** 종이 질감·색 얼룩·모서리 곡선은
@@ -43,10 +43,21 @@ function loadFrame() {
   return framePromise;
 }
 
-// 필름 카메라 데이트백 각인. 레퍼런스 사진들의 `'26 4 2` 형식 그대로 —
-// 두 자리 연도 앞에 아포스트로피, 월·일은 0을 안 붙인다.
-function dateStamp(d: Date) {
-  return `'${String(d.getFullYear()).slice(2)} ${d.getMonth() + 1} ${d.getDate()}`;
+// 아래 흰 여백에 적을 한 줄. 예: "📍 40.500, -74.448   2026.08.04  21:04"
+// 실물 폴라로이드에 손으로 적던 자리다.
+function caption(d: Date, coords: { lat: number; lng: number } | null) {
+  // padStart(2, "0") = 한 자리 숫자 앞에 0을 붙여 두 자리로. 7 → "07"
+  const p = (n: number) => String(n).padStart(2, "0");
+  // getMonth()는 0부터 시작하는 게 자바스크립트 함정. 1월이 0이라 +1이 필요하다.
+  const when = `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}  ${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (!coords) return when;
+
+  // 소수점 3자리 = 약 110m. 화면(`/capture`)에는 5자리(≈1m)로 보여주지만
+  // **사진에 새기는 건 3자리까지만** 한다. 이 이미지는 누구나 열 수 있는 public URL에
+  // 올라가고 인스타로도 퍼진다 — 5자리면 어느 방에서 찍었는지가 그대로 박힌다.
+  // 3자리면 "이 블록 어디쯤"이라는 분위기는 남고 집은 안 찍힌다.
+  // 정밀도를 바꾸려면 아래 두 개의 3만 고치면 된다.
+  return `📍 ${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)}   ${when}`;
 }
 
 // 필름 그레인(입자)용 흑백 노이즈 타일을 만든다.
@@ -102,19 +113,19 @@ function gradeFilm(ctx: CanvasRenderingContext2D, x: number, y: number, s: numbe
   //    파랑이 높은 색을 곱하면 R·G만 살짝 깎여서 노란기가 빠진다.
   //    레퍼런스의 흰 벽·하늘이 차가운 쪽으로 기운 게 이 느낌이다. 세게 하면 사진이 죽는다.
   ctx.globalCompositeOperation = "multiply";
-  ctx.fillStyle = "rgba(226,238,255,0.14)";
+  ctx.fillStyle = "rgba(224,235,255,0.22)";
   ctx.fillRect(x, y, s, s);
 
   // ② 검정을 아주 조금만 들어올린다. 필름도 완전한 0은 잘 안 나오지만,
   //    폴라로이드처럼 뿌옇게 뜨지는 않는다. 여기가 3300과 r1/r2가 갈리는 지점이다.
   ctx.globalCompositeOperation = "lighten";
-  ctx.fillStyle = "rgb(15,17,21)";
+  ctx.fillStyle = "rgb(30,34,39)";
   ctx.fillRect(x, y, s, s);
 
   // ③ 하이라이트에 아주 옅은 온기. screen = 밝게 섞기.
   //    ②가 그림자를 차갑게, ③이 밝은 쪽을 따뜻하게 만들어 색이 갈린다(split tone).
   ctx.globalCompositeOperation = "screen";
-  ctx.fillStyle = "rgba(255,196,180,0.07)";
+  ctx.fillStyle = "rgba(255,186,181,0.12)";
   ctx.fillRect(x, y, s, s);
 
   // ④ 비네팅 — 가장자리를 어둡게. 렌즈가 구석까지 빛을 못 보내서 생기는 현상이라
@@ -124,7 +135,7 @@ function gradeFilm(ctx: CanvasRenderingContext2D, x: number, y: number, s: numbe
   const cy = y + s / 2;
   const vignette = ctx.createRadialGradient(cx, cy, s * 0.42, cx, cy, s * 0.8);
   vignette.addColorStop(0, "rgba(18,16,20,0)");
-  vignette.addColorStop(1, "rgba(18,16,20,0.18)");
+  vignette.addColorStop(1, "rgba(18,16,20,0.26)");
   ctx.fillStyle = vignette;
   ctx.fillRect(x, y, s, s);
 
@@ -132,10 +143,10 @@ function gradeFilm(ctx: CanvasRenderingContext2D, x: number, y: number, s: numbe
   //    중간 회색은 아무 영향이 없어서 노이즈 타일과 짝이 맞는다.
   //    레퍼런스의 입자는 눈에 띄지만 거칠지 않다 — 두 층 다 예전보다 약하게.
   ctx.globalCompositeOperation = "overlay";
-  ctx.globalAlpha = 0.13; // 굵은 층
+  ctx.globalAlpha = 0.18; // 굵은 층
   ctx.fillStyle = grainPattern(ctx, 96, 2, 130);
   ctx.fillRect(x, y, s, s);
-  ctx.globalAlpha = 0.1; // 미세한 층 — 굵은 층만 있으면 격자무늬처럼 규칙적으로 보인다
+  ctx.globalAlpha = 0.14; // 미세한 층 — 굵은 층만 있으면 격자무늬처럼 규칙적으로 보인다
   ctx.fillStyle = grainPattern(ctx, 96, 1, 110);
   ctx.fillRect(x, y, s, s);
 
@@ -146,13 +157,39 @@ function gradeFilm(ctx: CanvasRenderingContext2D, x: number, y: number, s: numbe
 // "끝났어"라고 부모(capture/page.tsx)에게 알린다. ?는 안 넘겨도 된다는 뜻.
 export default function PolaroidCanvas({
   onCapture,
+  coords,
 }: {
   onCapture?: (canvas: HTMLCanvasElement) => void;
+  // 촬영 시점엔 아직 없다. GPS는 셔터를 누른 뒤 몇 초 걸려서 도착하므로,
+  // 사진은 먼저 그려두고 좌표가 오면 아래 여백에 한 줄만 덧그린다.
+  // 흰 여백은 아무것도 안 그려진 자리라 덧그리기만 하면 되고, 사진을 다시 그릴 필요가 없다.
+  coords?: { lat: number; lng: number } | null;
 }) {
   // 처음엔 아직 <canvas>가 화면에 없으니 null. 아래 ref={canvasRef}가 연결해준다.
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [captured, setCaptured] = useState(false); // 한 장이라도 찍었나 (버튼 문구/캔버스 표시용)
   const [status, setStatus] = useState(""); // 에러 메시지 (폰에서 원인을 눈으로 보려고)
+  // 촬영한 순간. 캡션을 나중에 그릴 때 "그릴 때 시각"이 아니라 "찍은 시각"을 써야 한다.
+  const shotAtRef = useRef<Date | null>(null);
+
+  // 좌표가 도착하면 아래 여백에 캡션을 적는다. 재촬영하면 종이가 새로 깔리므로
+  // 옛 캡션은 저절로 사라진다 — 지우는 코드가 따로 필요 없다.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const shotAt = shotAtRef.current;
+    if (!canvas || !shotAt || !coords) return;
+
+    const scale = canvas.width / FRAME.w;
+    const ctx = canvas.getContext("2d")!;
+    const fontSize = Math.round(PHOTO_PX * 0.042);
+    ctx.font = `${fontSize}px ui-monospace, monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#4a4640"; // 새까맣게 하면 인쇄물처럼 딱딱해진다
+    // 흰 여백의 세로 한가운데. 창 아래끝과 종이 아래끝의 중간이다.
+    const stripMid = ((FRAME.y + FRAME.s) * scale + canvas.height) / 2;
+    ctx.fillText(caption(shotAt, coords), canvas.width / 2, stripMid);
+  }, [coords]);
 
   // async = 안에서 await를 쓸 수 있는 함수. await는 "이 작업 끝날 때까지 여기서 기다려".
   // 사진 디코딩과 프레임 다운로드가 시간이 걸리는 작업이라 기다려야 한다.
@@ -202,7 +239,7 @@ export default function PolaroidCanvas({
       // ctx.filter는 그리는 순간 적용되는 보정.
       // 채도·대비를 거의 안 건드리는 게 요점이다 — 레퍼런스는 물 빠진 사진이 아니다.
       // blur는 화질을 깎는 게 아니라 디지털 특유의 칼 같은 가장자리를 눕히는 용도.
-      ctx.filter = "saturate(0.95) contrast(1.02) brightness(1.02) blur(0.3px)";
+      ctx.filter = "saturate(0.82) contrast(0.91) brightness(1.06) blur(0.45px)";
       ctx.drawImage(bitmap, cropX, cropY, side, side, px, py, s, s);
       ctx.filter = "none"; // 안 되돌리면 아래 글자와 각인에도 보정이 걸린다
       bitmap.close(); // 디코딩된 픽셀은 메모리를 많이 먹는다. 다 썼으니 즉시 반납.
@@ -215,20 +252,7 @@ export default function PolaroidCanvas({
       ctx.lineWidth = Math.max(1, s * 0.002);
       ctx.strokeRect(px, py, s, s);
 
-      // ⑤ 데이트백 각인. 필름 카메라가 사진 오른쪽 아래에 빛으로 태워 넣던 날짜다.
-      //    주황색인 이유: 필름 뒷면의 작은 LED가 감광층을 직접 노출시켜서,
-      //    현상하면 늘 이 주황빛으로 나온다. shadowBlur로 그 번짐을 흉내 낸다.
-      const stamp = dateStamp(new Date());
-      const fontSize = Math.round(s * 0.055);
-      ctx.font = `bold ${fontSize}px ui-monospace, monospace`;
-      ctx.textAlign = "right";
-      ctx.textBaseline = "bottom";
-      ctx.shadowColor = "rgba(255,120,30,0.9)";
-      ctx.shadowBlur = fontSize * 0.5;
-      ctx.fillStyle = "#ff8c32";
-      ctx.fillText(stamp, px + s - fontSize, py + s - fontSize);
-      ctx.shadowBlur = 0; // 안 끄면 이후에 그리는 모든 것에 번짐이 따라붙는다
-
+      shotAtRef.current = new Date();
       setCaptured(true);
       setStatus("");
       // 부모가 onCapture를 넘겼으면 호출(= GPS 요청이 여기서 시작된다).

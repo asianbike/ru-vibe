@@ -209,7 +209,7 @@ export default function CapturePage() {
 
       <div className="w-full max-w-sm">
         {/* onCapture로 우리 함수를 넘겨준다 = "사진 다 그렸으면 이걸 불러라" */}
-        <PolaroidCanvas onCapture={handleCapture} />
+        <PolaroidCanvas onCapture={handleCapture} coords={coords} />
 
         {/* 아직 안 찍었으면 && 뒤쪽은 아예 화면에 안 나온다 */}
         {shot && (
