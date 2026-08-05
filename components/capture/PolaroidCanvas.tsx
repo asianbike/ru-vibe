@@ -23,6 +23,14 @@ const FRAME = {
   x: 35, // 흰 창의 좌상단
   y: 30,
   s: 505, // 흰 창 한 변 (정확히는 505×506이라 정사각형으로 취급)
+
+  // 아래 흰 여백에서 잘라낼 높이(원본 픽셀). 실물 폴라로이드 비율은 여기가 아주 넓은데,
+  // 폰 화면에서는 그만큼이 그냥 빈 공간이라 사진이 작아 보인다.
+  trim: 58,
+  // 잘라낼 때 종이의 **맨 아래 가장자리는 남긴다.** 여기엔 실제 종이의 끝선과
+  // 둥근 모서리가 찍혀 있어서, 그냥 위에서 잘라버리면 종이가 칼로 썬 것처럼 끝난다.
+  // 그래서 가운데를 덜어내고 이 띠를 도로 붙이는 식으로 줄인다.
+  edge: 24,
 };
 
 // 사진 한 변의 픽셀 수. 프레임 사진을 이 크기에 맞춰 확대해서 쓴다.
@@ -181,8 +189,10 @@ export default function PolaroidCanvas({
 
     const scale = canvas.width / FRAME.w;
     const ctx = canvas.getContext("2d")!;
-    const fontSize = Math.round(PHOTO_PX * 0.042);
-    ctx.font = `${fontSize}px ui-monospace, monospace`;
+    const fontSize = Math.round(PHOTO_PX * 0.038);
+    // 폰에 실제로 깔려 있는 글꼴이라 파일을 받을 필요가 없다.
+    // 쉼표 뒤는 대비책 — 앞의 것이 없는 기기에서 차례로 넘어간다(마지막은 "아무 고딕").
+    ctx.font = `${fontSize}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#4a4640"; // 새까맣게 하면 인쇄물처럼 딱딱해진다
@@ -217,8 +227,10 @@ export default function PolaroidCanvas({
       // ── 크기 계산 ──
       // 프레임 사진(573px)을 사진 한 변이 PHOTO_PX가 되도록 확대한다.
       const scale = PHOTO_PX / FRAME.s;
+      // 아래 여백을 trim만큼 줄인 높이
+      const cardH = FRAME.h - FRAME.trim;
       canvas.width = Math.round(FRAME.w * scale);
-      canvas.height = Math.round(FRAME.h * scale);
+      canvas.height = Math.round(cardH * scale);
       const px = Math.round(FRAME.x * scale);
       const py = Math.round(FRAME.y * scale);
       const s = PHOTO_PX;
@@ -227,8 +239,18 @@ export default function PolaroidCanvas({
       // !는 "null 아님을 내가 보장한다"는 타입스크립트 표시.
       const ctx = canvas.getContext("2d")!;
 
-      // ① 종이 사진을 통째로 깐다. 창은 흰색으로 칠해져 있고, 그 위에 사진을 얹을 것이다.
-      ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+      // ① 종이 사진을 깐다. 창은 흰색으로 칠해져 있고, 그 위에 사진을 얹을 것이다.
+      //    한 번에 안 그리고 두 조각으로 나누는 이유는 아래 여백을 줄이기 위해서다.
+      //    위 조각(창 + 줄어든 여백)을 그리고, 종이 맨 아래 가장자리 띠를 이어 붙인다.
+      //    drawImage의 인자 9개짜리 형태 = (이미지, 원본에서 오릴 x,y,w,h, 그릴 x,y,w,h).
+      const topSrcH = FRAME.h - FRAME.edge - FRAME.trim;
+      const topDstH = Math.round(topSrcH * scale);
+      ctx.drawImage(frame, 0, 0, FRAME.w, topSrcH, 0, 0, canvas.width, topDstH);
+      ctx.drawImage(
+        frame,
+        0, FRAME.h - FRAME.edge, FRAME.w, FRAME.edge,
+        0, topDstH, canvas.width, canvas.height - topDstH,
+      );
 
       // ② 유저 사진을 창에 맞춰 정사각형으로 오려 넣는다.
       //    폴라로이드는 정사각형이므로 원본 가운데에서 짧은 변 길이만큼 잘라낸다.
