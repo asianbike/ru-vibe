@@ -16,6 +16,8 @@ import { createClient } from "@/lib/supabase/client";
 import InstallPrompt from "@/components/InstallPrompt";
 // 인앱 브라우저 경고. /capture에만 두면 늦다 — 로그인 버튼을 누르기 전에 알려야 한다.
 import InAppBrowserBanner from "@/components/InAppBrowserBanner";
+// 처음 온 사람에게 이 앱이 뭔지 알려주는 카드. 한 번 닫으면 다시 안 뜬다.
+import Welcome from "@/components/Welcome";
 // 지도의 확대 버튼, 로고, 팝업 같은 것들의 생김새를 정의한 CSS.
 // 이걸 빼면 지도 타일은 나오는데 UI가 깨져서 엉뚱한 곳에 겹쳐 보인다.
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -328,6 +330,7 @@ export default function MapPage() {
     <>
       <div ref={containerRef} className="h-dvh w-full" />
 
+      <Welcome />
       <InAppBrowserBanner />
       <InstallPrompt />
 
