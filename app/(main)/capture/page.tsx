@@ -98,9 +98,14 @@ export default function CapturePage() {
       // 2) 캔버스(픽셀 덩어리) → JPEG 파일 덩어리(Blob).
       //    toBlob은 옛날 API라 "다 되면 이 함수 불러줘" 콜백 방식이다. await로 기다리려면
       //    Promise로 감싸야 한다 — resolve를 콜백 자리에 그대로 넘기면 결과가 await로 나온다.
-      //    0.85 = JPEG 품질. 1.0은 눈에 띄는 차이 없이 파일만 3배 커진다(폰 데이터 낭비).
+      //    JPEG 품질. 1.0은 눈에 띄는 차이 없이 파일만 3배 커진다(폰 데이터 낭비).
+      //
+      //    0.85 → 0.75 (2026-08-12). 보통 이 정도로 낮추면 뭉갠 자국이 보이는데
+      //    이 사진은 필름 그레인이 이미 깔려 있어서 그 자국을 덮어버린다.
+      //    (그레인이 파일을 키운 원인이기도 하다 — JPEG은 비슷한 색이 뭉친 곳을 잘 줄이는데
+      //     그레인은 픽셀마다 값이 튀는 노이즈라 정확히 그 반대다)
       const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.85),
+        canvas.toBlob(resolve, "image/jpeg", 0.75),
       );
       if (!blob) throw new Error("Could not encode the photo.");
 
