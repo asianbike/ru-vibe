@@ -148,4 +148,8 @@ return NextResponse.redirect(new URL("/login", `${proto}://${host}`));
 
 ## 나중에
 
+**`docs/roadmap.md`에 정리됨** (2026-08-12) — 발전 방향을 "레쥬메 문장이 나오는가" 기준으로 정렬. 티어 1 세 개: ① RLS 통합 테스트 + CI(제일 싸고 제일 값짐) ② 뷰포트 기준 조회 + 클러스터링("10배 되면 어디가 터지나"의 답) ③ 06:00 작업 헬스체크(조용한 실패를 기록되는 실패로). 하면 안 되는 것도 같이 적음.
+**`docs/policy.md`** — 이번 작업 방식을 다음 프로젝트에 그대로 쓰도록 정리한 문서. `CLAUDE.md` 템플릿 포함.
+
+
 - **아카이브를 유저에게 보여주는 기능** — `archive`가 private이라 signed URL이 필요하고 `posts_archive`엔 grant가 없어 조회 경로부터 새로 만들어야 함
