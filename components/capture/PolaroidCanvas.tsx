@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 // canvas = 그림을 그릴 수 있는 HTML 요소. 픽셀 하나하나를 코드로 칠할 수 있다.
 // 여기서 하는 일: 진짜 폴라로이드 종이 사진(public/frame.jpg)을 깔고 → 그 흰 창 안에
 // 유저 사진을 정사각형으로 오려 넣고 → 35mm 필름 스캔처럼 색을 손보고 →
-// 아래 흰 여백에 위치·날짜·시간을 적는다. 결과물 한 장을 업로드한다.
+// 사진 안쪽 아래에 지명·날짜·시간을 각인한다. 결과물 한 장을 업로드한다.
 
 // ── 종이 ────────────────────────────────────────────────────────────
 // 프레임을 코드로 그리지 않고 **실물 사진을 쓴다.** 종이 질감·색 얼룩·모서리 곡선은
@@ -48,29 +48,56 @@ function loadFrame() {
   return framePromise;
 }
 
-// 아래 흰 여백에 적을 한 줄. 예: "📍 40.500, -74.448   2026.08.04  21:04"
-// 실물 폴라로이드에 손으로 적던 자리다.
+// 사진 아래쪽에 새길 두 줄. 예:
+//   ● COLLEGE AVE, NEW BRUNSWICK
+//   AUG. 18 - 9:04 PM
+//
 // 달 이름을 배열로 들고 있는 이유: toLocaleString()은 폰 언어 설정을 따라가서
 // 한국어 폰에서는 "8월"이 나온다. 앱에 표시되는 문구는 전부 영어여야 한다.
-const MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+const MONTHS = "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(" ");
 
-function caption(d: Date, coords: { lat: number; lng: number } | null) {
+function timeLine(d: Date) {
   // padStart(2, "0") = 한 자리 숫자 앞에 0을 붙여 두 자리로. 7 → "07"
   const p = (n: number) => String(n).padStart(2, "0");
-  // getMonth()는 0부터 시작하는 게 자바스크립트 함정. 1월이 0이라 MONTHS[0]이 Jan이 맞다.
-  const date = `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  // getMonth()는 0부터 시작하는 게 자바스크립트 함정. 1월이 0이라 MONTHS[0]이 JAN이 맞다.
   // 12시간제. 0시는 12 AM, 13시는 1 PM — %12는 0을 내놓으므로 || 12로 바꿔준다.
   const h = d.getHours();
-  const time = `${h % 12 || 12}:${p(d.getMinutes())} ${h < 12 ? "AM" : "PM"}`;
-  const when = `${date}  ${time}`;
-  if (!coords) return when;
+  return `${MONTHS[d.getMonth()]}. ${d.getDate()} - ${h % 12 || 12}:${p(d.getMinutes())} ${h < 12 ? "AM" : "PM"}`;
+}
 
-  // 소수점 3자리 = 약 110m. 화면(`/capture`)에는 5자리(≈1m)로 보여주지만
-  // **사진에 새기는 건 3자리까지만** 한다. 이 이미지는 누구나 열 수 있는 public URL에
-  // 올라가고 인스타로도 퍼진다 — 5자리면 어느 방에서 찍었는지가 그대로 박힌다.
-  // 3자리면 "이 블록 어디쯤"이라는 분위기는 남고 집은 안 찍힌다.
-  // 정밀도를 바꾸려면 아래 두 개의 3만 고치면 된다.
-  return `📍 ${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)}   ${when}`;
+// 위경도 대신 **지명**을 새긴다. `40.500, -74.448`은 사람이 읽어도 어딘지 모르고,
+// 남에게 보여줄 사진에 좌표가 박히는 건 그 자체로 불필요한 노출이다.
+// 지명은 "어느 동네" 수준(≈500m)이라 분위기는 남고 집 주소는 안 남는다.
+//
+// 지오코딩 API(위경도 → 주소)를 쓰지 않는 이유: 우리 Mapbox 토큰은 지도 타일만
+// 허용돼 있어서 geocoding 요청이 Forbidden으로 막힌다. 게다가 이 앱은 러트거스
+// 전용이라 나올 수 있는 답이 사실상 이 표에 다 있다 — 네트워크 왕복 0회가 낫다.
+// ponytail: 가장 가까운 한 곳을 고르는 단순 거리 비교. 캠퍼스 밖이면 아무것도 안 쓴다.
+const AREAS: [lat: number, lng: number, label: string][] = [
+  [40.5010, -74.4487, "COLLEGE AVE, NEW BRUNSWICK"],
+  [40.4998, -74.4514, "EASTON AVE, NEW BRUNSWICK"],
+  [40.4955, -74.4460, "DOWNTOWN NEW BRUNSWICK"],
+  [40.5222, -74.4620, "BUSCH CAMPUS, PISCATAWAY"],
+  [40.5227, -74.4370, "LIVINGSTON CAMPUS, PISCATAWAY"],
+  [40.4810, -74.4360, "COOK/DOUGLASS, NEW BRUNSWICK"],
+];
+// 이 거리(약 800m)보다 멀면 "모르는 곳"으로 친다. 위도 1도 ≈ 111km이므로
+// 0.0072도 ≈ 800m. 경도는 위도 40°에서 한 도가 더 짧지만(cos40 ≈ 0.77),
+// 여기선 "가장 가까운 곳 고르기"라 그 왜곡이 순서를 바꿀 만큼 크지 않다.
+const AREA_RADIUS = 0.0072;
+
+function placeLine(coords: { lat: number; lng: number }) {
+  let best: string | null = null;
+  let bestD = AREA_RADIUS;
+  for (const [lat, lng, label] of AREAS) {
+    // Math.hypot(a, b) = √(a²+b²). 두 점 사이 직선거리를 "도(degree)" 단위로 잰다.
+    const d = Math.hypot(lat - coords.lat, lng - coords.lng);
+    if (d < bestD) {
+      bestD = d;
+      best = label;
+    }
+  }
+  return best;
 }
 
 // 필름 그레인(입자)용 흑백 노이즈 타일을 만든다.
@@ -174,8 +201,8 @@ export default function PolaroidCanvas({
 }: {
   onCapture?: (canvas: HTMLCanvasElement) => void;
   // 촬영 시점엔 아직 없다. GPS는 셔터를 누른 뒤 몇 초 걸려서 도착하므로,
-  // 사진은 먼저 그려두고 좌표가 오면 아래 여백에 한 줄만 덧그린다.
-  // 흰 여백은 아무것도 안 그려진 자리라 덧그리기만 하면 되고, 사진을 다시 그릴 필요가 없다.
+  // 사진은 먼저 그려두고 좌표가 오면 그 위에 두 줄만 덧그린다.
+  // 캔버스는 이미 그려진 픽셀 위에 덧칠하는 방식이라 사진을 다시 그릴 필요가 없다.
   coords?: { lat: number; lng: number } | null;
 }) {
   // 처음엔 아직 <canvas>가 화면에 없으니 null. 아래 ref={canvasRef}가 연결해준다.
@@ -185,25 +212,60 @@ export default function PolaroidCanvas({
   // 촬영한 순간. 캡션을 나중에 그릴 때 "그릴 때 시각"이 아니라 "찍은 시각"을 써야 한다.
   const shotAtRef = useRef<Date | null>(null);
 
-  // 좌표가 도착하면 아래 여백에 캡션을 적는다. 재촬영하면 종이가 새로 깔리므로
-  // 옛 캡션은 저절로 사라진다 — 지우는 코드가 따로 필요 없다.
+  // 좌표가 도착하면 **사진 안쪽 아래 가운데**에 지명·시각을 새긴다(디지털 카메라의
+  // 날짜 각인 자리). 흰 여백이 아니라 사진 위에 얹는 이유는 그게 레퍼런스의 느낌이고,
+  // 여백은 실물 폴라로이드처럼 비워둬야 "종이"로 읽히기 때문.
+  // 재촬영하면 종이가 새로 깔리므로 옛 글자는 저절로 사라진다 — 지우는 코드가 따로 없다.
   useEffect(() => {
     const canvas = canvasRef.current;
     const shotAt = shotAtRef.current;
     if (!canvas || !shotAt || !coords) return;
 
+    // 사진(흰 창)의 위치와 크기. handleFile에서 쓴 계산과 같은 것을 다시 한다.
     const scale = canvas.width / FRAME.w;
+    const px = FRAME.x * scale;
+    const py = FRAME.y * scale;
+    const s = FRAME.s * scale;
+
     const ctx = canvas.getContext("2d")!;
-    const fontSize = Math.round(PHOTO_PX * 0.046);
+    ctx.save(); // 아래에서 그림자·정렬을 바꾸므로 마지막에 되돌린다
+
+    const fontSize = Math.round(s * 0.042);
     // 폰에 실제로 깔려 있는 글꼴이라 파일을 받을 필요가 없다.
     // 쉼표 뒤는 대비책 — 앞의 것이 없는 기기에서 차례로 넘어간다(마지막은 "아무 고딕").
-    ctx.font = `${fontSize}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    ctx.font = `600 ${fontSize}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#4a4640"; // 새까맣게 하면 인쇄물처럼 딱딱해진다
-    // 흰 여백의 세로 한가운데. 창 아래끝과 종이 아래끝의 중간이다.
-    const stripMid = ((FRAME.y + FRAME.s) * scale + canvas.height) / 2;
-    ctx.fillText(caption(shotAt, coords), canvas.width / 2, stripMid);
+    ctx.textBaseline = "alphabetic"; // 글자의 밑선 기준 — 두 줄 간격을 계산하기 쉽다
+    ctx.fillStyle = "#fff";
+    // 사진이 밝으면 흰 글자가 사라진다. 그림자는 장식이 아니라 가독성 장치.
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = fontSize * 0.5;
+    ctx.shadowOffsetY = fontSize * 0.06;
+
+    const cx = px + s / 2;
+    const baseY = py + s - fontSize * 1.2; // 아랫줄(시각)의 밑선
+    ctx.fillText(timeLine(shotAt), cx, baseY);
+
+    // 윗줄(지명) — 캠퍼스 밖에서 찍으면 아는 지명이 없으므로 시각만 남는다.
+    const place = placeLine(coords);
+    if (place) {
+      const y = baseY - fontSize * 1.35;
+      // 점 + 간격 + 글자를 한 덩어리로 보고 그 덩어리를 가운데 정렬한다.
+      // textAlign="center"로는 글자만 가운데라 점 때문에 왼쪽으로 밀려 보인다.
+      const r = fontSize * 0.16;
+      const gap = fontSize * 0.36;
+      const textW = ctx.measureText(place).width;
+      const startX = cx - (r * 2 + gap + textW) / 2;
+      ctx.textAlign = "left";
+      ctx.fillText(place, startX + r * 2 + gap, y);
+      ctx.beginPath();
+      // 점은 글자의 세로 한가운데에 맞춘다(밑선보다 대문자 높이의 절반쯤 위).
+      ctx.arc(startX + r, y - fontSize * 0.33, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#4ade80"; // "지금 여기" 신호등. 사진 색과 안 겹치는 초록
+      ctx.fill();
+    }
+
+    ctx.restore();
   }, [coords]);
 
   // async = 안에서 await를 쓸 수 있는 함수. await는 "이 작업 끝날 때까지 여기서 기다려".
