@@ -81,10 +81,15 @@ const AREAS: [lat: number, lng: number, label: string][] = [
   [40.5227, -74.4370, "LIVINGSTON CAMPUS, PISCATAWAY"],
   [40.4810, -74.4360, "COOK/DOUGLASS, NEW BRUNSWICK"],
 ];
-// 이 거리(약 800m)보다 멀면 "모르는 곳"으로 친다. 위도 1도 ≈ 111km이므로
-// 0.0072도 ≈ 800m. 경도는 위도 40°에서 한 도가 더 짧지만(cos40 ≈ 0.77),
-// 여기선 "가장 가까운 곳 고르기"라 그 왜곡이 순서를 바꿀 만큼 크지 않다.
-const AREA_RADIUS = 0.0072;
+// 이 거리(약 2km)보다 멀면 "모르는 곳"으로 치고 지명 줄을 아예 안 쓴다.
+// 위도 1도 ≈ 111km이므로 0.018도 ≈ 2km. 경도는 위도 40°에서 한 도가 더 짧지만
+// (cos40 ≈ 0.77), 여기선 "가장 가까운 곳 고르기"라 그 왜곡이 순서를 바꿀 만큼 크지 않다.
+//
+// 처음엔 800m였는데 캠퍼스에서 1km쯤 떨어진 집에서 찍으니 줄이 통째로 빠졌다.
+// 2km면 뉴브런즈윅 안에서는 항상 뭔가 나오고, 대신 "가장 가까운 캠퍼스"라는
+// 뜻이 된다(1km 떨어져도 COLLEGE AVE로 찍힌다). 지도 핀은 진짜 좌표를 쓰므로
+// 이 어긋남은 각인 문구에만 있다.
+const AREA_RADIUS = 0.018;
 
 function placeLine(coords: { lat: number; lng: number }) {
   let best: string | null = null;
@@ -212,9 +217,9 @@ export default function PolaroidCanvas({
   // 촬영한 순간. 캡션을 나중에 그릴 때 "그릴 때 시각"이 아니라 "찍은 시각"을 써야 한다.
   const shotAtRef = useRef<Date | null>(null);
 
-  // 좌표가 도착하면 **사진 안쪽 아래 가운데**에 지명·시각을 새긴다(디지털 카메라의
-  // 날짜 각인 자리). 흰 여백이 아니라 사진 위에 얹는 이유는 그게 레퍼런스의 느낌이고,
-  // 여백은 실물 폴라로이드처럼 비워둬야 "종이"로 읽히기 때문.
+  // 좌표가 도착하면 **아래 흰 여백**에 지명·시각을 검은 글자로 적는다.
+  // 실물 폴라로이드에 펜으로 적던 자리다. 사진 위에 흰 글자로 얹어도 봤는데,
+  // 밝은 사진에서는 그림자를 넣어도 글자가 사진을 가려서 여백 쪽이 깔끔했다.
   // 재촬영하면 종이가 새로 깔리므로 옛 글자는 저절로 사라진다 — 지우는 코드가 따로 없다.
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -223,33 +228,32 @@ export default function PolaroidCanvas({
 
     // 사진(흰 창)의 위치와 크기. handleFile에서 쓴 계산과 같은 것을 다시 한다.
     const scale = canvas.width / FRAME.w;
-    const px = FRAME.x * scale;
-    const py = FRAME.y * scale;
     const s = FRAME.s * scale;
 
     const ctx = canvas.getContext("2d")!;
-    ctx.save(); // 아래에서 그림자·정렬을 바꾸므로 마지막에 되돌린다
+    ctx.save(); // 아래에서 정렬·색을 바꾸므로 마지막에 되돌린다
 
-    const fontSize = Math.round(s * 0.042);
+    const fontSize = Math.round(s * 0.052);
     // 폰에 실제로 깔려 있는 글꼴이라 파일을 받을 필요가 없다.
     // 쉼표 뒤는 대비책 — 앞의 것이 없는 기기에서 차례로 넘어간다(마지막은 "아무 고딕").
-    ctx.font = `600 ${fontSize}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    ctx.font = `bold ${fontSize}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic"; // 글자의 밑선 기준 — 두 줄 간격을 계산하기 쉽다
-    ctx.fillStyle = "#fff";
-    // 사진이 밝으면 흰 글자가 사라진다. 그림자는 장식이 아니라 가독성 장치.
-    ctx.shadowColor = "rgba(0,0,0,0.55)";
-    ctx.shadowBlur = fontSize * 0.5;
-    ctx.shadowOffsetY = fontSize * 0.06;
+    ctx.textBaseline = "middle"; // y가 글자의 세로 한가운데 — 초록 점과 높이를 맞추기 쉽다
+    ctx.fillStyle = "#111";
 
-    const cx = px + s / 2;
-    const baseY = py + s - fontSize * 1.2; // 아랫줄(시각)의 밑선
-    ctx.fillText(timeLine(shotAt), cx, baseY);
+    // 흰 여백 = 사진 아래끝부터 종이 아래끝까지. 그 안에서 세로 가운데를 잡는다.
+    const stripMid = ((FRAME.y + FRAME.s) * scale + canvas.height) / 2;
+    const cx = canvas.width / 2;
+    const lineH = fontSize * 1.25;
 
-    // 윗줄(지명) — 캠퍼스 밖에서 찍으면 아는 지명이 없으므로 시각만 남는다.
+    // 지명은 캠퍼스에서 너무 멀면 없다. 그때는 시각 한 줄만 여백 한가운데에 놓고,
+    // 두 줄일 때는 가운데를 기준으로 반 줄씩 위아래로 벌린다.
     const place = placeLine(coords);
+    const timeY = place ? stripMid + lineH / 2 : stripMid;
+    ctx.fillText(timeLine(shotAt), cx, timeY);
+
     if (place) {
-      const y = baseY - fontSize * 1.35;
+      const y = timeY - lineH;
       // 점 + 간격 + 글자를 한 덩어리로 보고 그 덩어리를 가운데 정렬한다.
       // textAlign="center"로는 글자만 가운데라 점 때문에 왼쪽으로 밀려 보인다.
       const r = fontSize * 0.16;
@@ -259,9 +263,8 @@ export default function PolaroidCanvas({
       ctx.textAlign = "left";
       ctx.fillText(place, startX + r * 2 + gap, y);
       ctx.beginPath();
-      // 점은 글자의 세로 한가운데에 맞춘다(밑선보다 대문자 높이의 절반쯤 위).
-      ctx.arc(startX + r, y - fontSize * 0.33, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#4ade80"; // "지금 여기" 신호등. 사진 색과 안 겹치는 초록
+      ctx.arc(startX + r, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#2fae4e"; // "지금 여기" 신호등. 흰 종이 위라 밝은 초록은 뜬다
       ctx.fill();
     }
 
